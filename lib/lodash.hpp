@@ -235,7 +235,7 @@ namespace _
     void pull(Container& container, typename Container::value_type const& value)
     {
 		for (auto i = container.begin(); i != container.end(); )
-			(*i == *this) ? i = container.erase(i) : ++i;
+			(*i == value) ? i = container.erase(i) : ++i;
     }
 
 	// pullAll (lodash) - This method is like _.pull except that it accepts an array of values to remove.
