@@ -1,5 +1,6 @@
 #ifndef UNDERSCORE_UNDERSCORE_H_
 #define UNDERSCORE_UNDERSCORE_H_
+#define UNDERSCORE_BONUS
 
 #include <cstdlib>
 #include <algorithm>
@@ -119,6 +120,13 @@ namespace _
             push_back(container, value);
         }
 
+        template <typename Container>
+        typename enable_if<HasSupportedAdditionMethod<Container>::value, void>::type add_to_container(
+            Container& container, typename Container::key_type const& key, typename Container::value_type const& value)
+        {
+            container.insert(container, value);
+        }
+
         template <typename T>
         struct is_void
         {
@@ -131,6 +139,14 @@ namespace _
             static bool const value = true;
         };
 
+		template<typename T>
+		constexpr T clamp(T value, T min, T max) {
+			return (
+				value > max ? max :
+				value < min ? min :
+				value
+			);
+		}
     } // namespace helper
 
       // Collections
@@ -172,6 +188,30 @@ namespace _
 		//	void fun(const Type &a, const size_t d);
 		for (auto i = container.begin(); i != container.end(); ++i) {
 			function(i);
+		}
+	}
+
+	//  The full power of `each`.  Each invocation of iteratee is called 
+	//  with three arguments: (element, index, list). If list is an object, 
+	//  iteratee's arguments will be (value, key, list).  (MDN)
+    template <typename Container, typename Function>
+	void each_key_value(Container container, Function function)
+	{
+		for (auto i = container.begin(); i != container.end(); ++i) {
+			auto key = i->first;
+			auto value = i->second;
+			function(value, key, container);
+		}
+	}
+
+	//  each - for nlohmann::json containers. iteratee has two arguments: (value, key). 
+    template <typename Container, typename Function>
+	void each_json(Container container, Function function)
+	{
+		for (auto i = container.begin(); i != container.end(); ++i) {
+			auto key = i.key();
+			auto value = i.value();
+			function(value, key);
 		}
 	}
 
@@ -220,6 +260,7 @@ namespace _
 	// Note: Unlike _.filter, this method mutates array. Use _.pull to pull elements from an array by value.
     template <typename ResultContainer, typename Container, typename Function>
 	ResultContainer removeAndReturn(Container& container, Function function) {
+        ResultContainer result;
 		for (auto i = container.begin(); i != container.end(); ) {
 			if (function(*i))
 				helper::add_to_container(result, *i), 
@@ -250,6 +291,22 @@ namespace _
 		for (auto i = container.begin(); i != container.end(); )
 			contains(values, *i) ? i = container.erase(i) : ++i;
     }
+
+    // filter/select
+    template <typename ResultContainer, typename Container, typename Predicate>
+    ResultContainer filter(Container container, Predicate predicate)
+    {
+        ResultContainer result;
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            if (predicate(*i))
+            {
+                helper::add_to_container(result, *i);
+            }
+        }
+        return result;
+    }
+
 
 	// without - Creates an array excluding all given values using SameValueZero for equality comparisons.
 	// Note: Unlike `pull`, this method returns a new array.
@@ -289,13 +346,53 @@ namespace _
 		for (auto i = container.begin(); i != container.end(); ++i)
 		{
 			auto k = i->first;
-			// auto v = i->second;
 			helper::add_to_container(result, k);
 		}
         //for (auto i = container.begin(); i != container.end(); ++i)
         //{
         //    helper::add_to_container(result, i->key());
         //}
+        return result;
+    }
+
+	// MDN - The slice() method returns a shallow copy of a portion of an array into a 
+	// new array object selected from begin to end (end not included). 
+	// The original array will not be modified.
+    template <typename ResultContainer, typename Container>
+    ResultContainer slice(Container container, size_t begin = 0, size_t end = 0)
+    {
+		//begin Optional
+		//	Zero - based index at which to begin extraction.
+		//	A negative index can be used, indicating an offset from the end of the sequence.slice(-2) extracts the last two elements in the sequence.
+		//	If begin is undefined, slice begins from index 0.
+
+		//end Optional
+		//	Zero - based index before which to end extraction.slice extracts up to but not including end.
+		//	For example, slice(1, 4) extracts the second element through the fourth element(elements indexed 1, 2, and 3).
+		//	A negative index can be used, indicating an offset from the end of the sequence.slice(2, -1) extracts the third element through the second - to - last element in the sequence.
+		//	If end is omitted, slice extracts through the end of the sequence(arr.length).
+		//	If end is greater than the length of the sequence, slice extracts through the end of the sequence(arr.length).
+
+		const size_t len = container.size();
+		if (end < 1)
+			end = len - end;
+
+		if (begin < 0)
+			begin = len - begin - 1;
+
+		begin = helper::clamp<size_t>(begin, 0, len - 1);
+		end   = helper::clamp<size_t>(end, 0, len);
+
+        ResultContainer result;
+		size_t _index = 0;
+		for (auto i = container.begin(); i != container.end(); ++i)
+		{
+			auto index = _index++;
+			if (index >= end)
+				break;
+			if (index >= begin)
+				helper::add_to_container(result, *i);
+		}
         return result;
     }
 
@@ -351,21 +448,6 @@ namespace _
     typename Container::iterator detect(Container& container, Predicate predicate)
     {
         return find(container, predicate);
-    }
-
-    // filter/select
-    template <typename ResultContainer, typename Container, typename Predicate>
-    ResultContainer filter(Container container, Predicate predicate)
-    {
-        ResultContainer result;
-        for (auto i = container.begin(); i != container.end(); ++i)
-        {
-            if (predicate(*i))
-            {
-                helper::add_to_container(result, *i);
-            }
-        }
-        return result;
     }
 
     template <typename ResultContainer, typename Container, typename Predicate>
@@ -602,7 +684,10 @@ namespace _
     namespace helper
     {
         template <typename Argument, typename Function>
-        class TransformCompare : std::binary_function<Argument, Argument, bool>
+        class TransformCompare
+#if _HAS_CXX17 == 0
+			: std::binary_function<Argument, Argument, bool>
+#endif
         {
         public:
             TransformCompare(Function const& function)
@@ -975,6 +1060,15 @@ namespace _
         return ResultContainer(union_result.begin(), union_result.end());
     }
 
+    // difference2 - because `difference` doesn't work for all types
+    template <typename ResultContainer, typename Container1, typename Container2>
+    ResultContainer difference2(Container1 const& container1, Container2 const& container2)
+    {
+		return filter<ResultContainer>(container1, [&](const auto& value) {
+				return !contains(container2, value);
+		});
+    }
+
     // zip
     template <typename ResultContainer, typename Container1, typename Container2>
     ResultContainer zip(const Container1& container1, const Container2& container2)
@@ -993,9 +1087,32 @@ namespace _
     template <typename Container>
     int indexOf(Container& container, typename Container::value_type value)
     {
-        typename Container::iterator value_position = std::find(container.begin(), container.end(), value);
+        auto value_position = std::find(container.begin(), container.end(), value);
         return value_position == container.end() ? -1
             : std::distance(container.begin(), value_position);
+    }
+
+	// `indexOf` that accepts `Container::value_type = std::pair<K, V>`
+    template <typename Container, typename Value>
+    int indexOfMap(Container& container, Value value)
+    {
+		// https://stackoverflow.com/questions/12742472/how-to-get-matching-key-using-the-value-in-a-map-c
+
+		auto value_position = std::find_if(std::begin(container), std::end(container), [&](const auto& pair)
+		{
+			return pair.second == value;
+		});
+
+        return value_position == container.end() ? -1
+            : std::distance(container.begin(), value_position);
+    }
+
+
+	// `contains` that accepts `Container::value_type = std::pair<K, V>`
+    template <typename Container, typename Value>
+    bool containsMap(Container container, Value value)
+    {
+		return indexOfMap(container, value) != -1;
     }
 
     template <typename Container>
@@ -1057,6 +1174,38 @@ namespace _
     {
         return range<ResultContainer>(0, stop, 1);
     }
+
+#ifdef UNDERSCORE_BONUS
+	// at
+	template <typename Container>
+	auto& at(Container& container, typename Container::key_type key)
+	{
+		return container.at(key);
+	}
+
+	template <typename Container>
+	auto tryAndGet(Container container, const typename Container::key_type key, typename Container::value_type& value) {
+		if (contains(container, key)) {
+			value = at(container, key);
+			return true;
+		}
+		return false;
+	}
+
+	template <typename Container>
+	auto& getOrCall(Container container, const typename Container::key_type key, typename Container::value_type(*function)(typename Container::key_type)) {
+		if (!contains(container, key))
+			helper::add_to_container(container, key, function(key));
+		return at(container, key);
+	}
+
+	template <typename Container>
+	auto& getOrDefault(Container container, const typename Container::key_type key, const typename Container::value_type& value) {
+		if (!contains(container, key))
+			helper::add_to_container(container, key, value);
+		return at(container, key);
+	}
+#endif
 
     // Functions
 
@@ -1159,6 +1308,7 @@ namespace _
         {
             return chain(_::reduce(container_, function, memo));
         }
+
 
     private:
         Container container_;
