@@ -359,7 +359,7 @@ namespace _
 	// new array object selected from begin to end (end not included). 
 	// The original array will not be modified.
     template <typename ResultContainer, typename Container>
-    ResultContainer slice(Container container, size_t begin = 0, size_t end = 0)
+    ResultContainer slice(Container container, long long begin = 0, long long end = 0)
     {
 		//begin Optional
 		//	Zero - based index at which to begin extraction.
