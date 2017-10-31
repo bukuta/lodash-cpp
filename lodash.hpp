@@ -423,7 +423,7 @@ namespace _
     // reduce/inject/foldl
     /// <summary>Applies a function against an accumulator and each element in the container (from left to right) to reduce it to a single value.</summary>
     /// <param name="container">The container.</param>
-    /// <param name="function">The callback, callback(<paramref name="initialValue">, currentValue)</param>
+    /// <param name="function">The callback, callback(<paramref name="initialValue" />, currentValue)</param>
     /// <param name="initialValue">Value to use as the first argument to the first call of the callback.</param>
     /// <returns>The value that results from the reduction.</returns>
     /// <example><code><![CDATA[
