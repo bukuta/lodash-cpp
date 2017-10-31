@@ -368,6 +368,23 @@ namespace _
         return result;
     }
 
+    // sfink - keys2
+    template <typename Container, typename ResultContainer = Container::value_type>
+    ResultContainer keys2(Container container)
+    {
+        ResultContainer result;
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            auto k = i->first;
+            helper::add_to_container(result, k);
+        }
+        //for (auto i = container.begin(); i != container.end(); ++i)
+        //{
+        //    helper::add_to_container(result, i->key());
+        //}
+        return result;
+    }
+
     // MDN - The slice() method returns a shallow copy of a portion of an array into a 
     // new array object selected from begin to end (end not included). 
     // The original array will not be modified.
@@ -409,11 +426,6 @@ namespace _
         return result;
     }
 
-    // JavaScript reduce:
-    //Input:
-    //    [1, 2, 3].reduce(function(accumulator, currentValue, currentIndex, container) {
-    //        return accumulator + "Index: " + currentIndex + " = " + currentValue + "\n";
-    //    }, initialValue = "Output: \n");
 
     //Output:
     //    Index: 0 = 1
@@ -423,7 +435,7 @@ namespace _
     // reduce/inject/foldl
     /// <summary>Applies a function against an accumulator and each element in the container (from left to right) to reduce it to a single value.</summary>
     /// <param name="container">The container.</param>
-    /// <param name="function">The callback, callback(<paramref name="initialValue" />, currentValue)</param>
+    /// <param name="function">The callback, callback(<paramref name="initialValue" />, currentValue, currentIndex, container)</param>
     /// <param name="initialValue">Value to use as the first argument to the first call of the callback.</param>
     /// <returns>The value that results from the reduction.</returns>
     /// <example><code><![CDATA[
@@ -445,7 +457,56 @@ namespace _
             initialValue = function(initialValue, *i);
         }
         return initialValue;
-    }
+    } 
+
+    /// <summary>Applies a function against an accumulator and each element in the array-container (from left to right) to reduce it to a single value.</summary>
+    /// <param name="container">The container.</param>
+    /// <param name="function">The callback, callback(<paramref name="initialValue" />, currentValue)</param>
+    /// <param name="initialValue">Value to use as the first argument to the first call of the callback.</param>
+    /// <returns>The value that results from the reduction.</returns>
+    /// <example><code>
+    ///    std::vector v{ 1, 2, 3 };
+	///    cout << v.reduce([](accumulator, currentValue, currentIndex, container) {
+    ///        return accumulator + "Index: "s + std::to_string(currentIndex) + " = "s + std::to_string(currentValue) + '\n';
+    ///    }, std::string{});
+    /// </example></code>
+    /// TODO Implement initialValue as optional: "[Optional] Value to use as the first argument to the first call of the callback. If no initial value is supplied, the first element in the array will be used. Calling reduce on an empty array without an initial value is an error."
+    template <typename Container, typename Function, typename Memo>
+    Memo reduce2(const Container container, Function function, Memo initialValue)
+    {
+		each_with_distance(container, [&](const typename Container::value_type& value, const size_t index) {
+			initialValue = function(initialValue, value, index, container);
+		});
+        return initialValue;
+    } 
+
+
+    /// <summary>Applies a function against an accumulator and each element in the container (from left to right) to reduce it to a single value.</summary>
+    /// <param name="container">The container.</param>
+    /// <param name="function">The callback, callback(<paramref name="initialValue" />, currentValue)</param>
+    /// <param name="initialValue">Value to use as the first argument to the first call of the callback.</param>
+    /// <returns>The value that results from the reduction.</returns>
+    /// <example><code>
+    ///    std::vector v{ 1, 2, 3 };
+	///    cout << v.reduce([](accumulator, currentValue, currentIndex, container) {
+    ///        return accumulator + "Index: "s + std::to_string(currentIndex) + " = "s + std::to_string(currentValue) + '\n';
+    ///    }, std::string{});
+    /// </example></code>
+    /// TODO Implement initialValue as optional: "[Optional] Value to use as the first argument to the first call of the callback. If no initial value is supplied, the first element in the array will be used. Calling reduce on an empty array without an initial value is an error."
+    template <typename Container, typename Function, typename Memo>
+    Memo reduceMap(const Container container, Function function, Memo initialValue)
+    {
+        // ResultContainer result;
+        auto keys = _::keys(container);
+        for (const auto& key : keys) 
+        {
+            initialValue = function(initialValue, container[key], key, container);
+        }
+        return initialValue;
+    } 
+        //for (auto i = container.begin(); i != container.end(); ++i) {
+        //    function(*i, std::distance(container.begin(), i));
+        //}
 
     template <typename Container, typename Function, typename Memo>
     Memo inject(const Container container, Function function, Memo initialValue)
