@@ -361,28 +361,21 @@ namespace _
             auto k = i->first;
             helper::add_to_container(result, k);
         }
-        //for (auto i = container.begin(); i != container.end(); ++i)
-        //{
-        //    helper::add_to_container(result, i->key());
-        //}
         return result;
     }
 
     // sfink - keys2
-    template <typename Container, typename ResultContainer = Container::value_type>
-    ResultContainer keys2(Container container)
+    template <typename Container>
+    auto keys2(const Container& container)
     {
-        ResultContainer result;
-        for (auto i = container.begin(); i != container.end(); ++i)
-        {
-            auto k = i->first;
-            helper::add_to_container(result, k);
-        }
+		return keys<std::vector<typename Container::key_type>>(container);
+        //typename Container::key_type result;
         //for (auto i = container.begin(); i != container.end(); ++i)
         //{
-        //    helper::add_to_container(result, i->key());
+        //    auto k = i->first;
+        //    helper::add_to_container(result, k);
         //}
-        return result;
+        //return result;
     }
 
     // MDN - The slice() method returns a shallow copy of a portion of an array into a 
@@ -450,7 +443,7 @@ namespace _
     /// TODO Implement initialValue as optional: "[Optional] Value to use as the first argument to the first call of the callback. If no initial value is supplied, the first element in the array will be used. Calling reduce on an empty array without an initial value is an error."
     /// TODO Implement full range of functionality as described in https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce?v=b
     template <typename Container, typename Function, typename Memo>
-    Memo reduce(const Container container, Function function, Memo initialValue)
+    Memo reduce(const Container& container, Function function, Memo initialValue)
     {
         for (auto i = container.begin(); i != container.end(); ++i)
         {
@@ -459,20 +452,20 @@ namespace _
         return initialValue;
     } 
 
-    /// <summary>Applies a function against an accumulator and each element in the array-container (from left to right) to reduce it to a single value.</summary>
+    /// <summary>`reduce` for sequence containers with 4 argument callback</summary>
     /// <param name="container">The container.</param>
-    /// <param name="function">The callback, callback(<paramref name="initialValue" />, currentValue)</param>
+    /// <param name="function">callback(<paramref name="initialValue" />, currentValue, currentIndex, <paramref name="container" />)</param>
     /// <param name="initialValue">Value to use as the first argument to the first call of the callback.</param>
     /// <returns>The value that results from the reduction.</returns>
     /// <example><code>
-    ///    std::vector v{ 1, 2, 3 };
-	///    cout << v.reduce([](accumulator, currentValue, currentIndex, container) {
-    ///        return accumulator + "Index: "s + std::to_string(currentIndex) + " = "s + std::to_string(currentValue) + '\n';
-    ///    }, std::string{});
-    /// </example></code>
+	/// std::vector<int> v{ 1, 2, 3 };
+	/// count << _::reduceArray(v, [](auto accumulator, auto currentValue, auto currentIndex, auto container) {
+	///     return accumulator + "Index: "s + std::to_string(currentIndex) + " = "s + std::to_string(currentValue) + '\n';
+	/// }, std::string{})
+	/// </example></code>
     /// TODO Implement initialValue as optional: "[Optional] Value to use as the first argument to the first call of the callback. If no initial value is supplied, the first element in the array will be used. Calling reduce on an empty array without an initial value is an error."
     template <typename Container, typename Function, typename Memo>
-    Memo reduce2(const Container container, Function function, Memo initialValue)
+    Memo reduceArray(const Container& container, Function function, Memo initialValue)
     {
 		each_with_distance(container, [&](const typename Container::value_type& value, const size_t index) {
 			initialValue = function(initialValue, value, index, container);
@@ -481,48 +474,43 @@ namespace _
     } 
 
 
-    /// <summary>Applies a function against an accumulator and each element in the container (from left to right) to reduce it to a single value.</summary>
+    /// <summary>`reduce` for associative containers with 4 argument callback</summary>
+    /// <see cref="reduce" />
+    /// <seealso cref="reduceArray" />
     /// <param name="container">The container.</param>
-    /// <param name="function">The callback, callback(<paramref name="initialValue" />, currentValue)</param>
+    /// <param name="function">callback(<paramref name="initialValue" />, currentValue, currentKey, <paramref name="container" />)</param>
     /// <param name="initialValue">Value to use as the first argument to the first call of the callback.</param>
     /// <returns>The value that results from the reduction.</returns>
-    /// <example><code>
-    ///    std::vector v{ 1, 2, 3 };
-	///    cout << v.reduce([](accumulator, currentValue, currentIndex, container) {
-    ///        return accumulator + "Index: "s + std::to_string(currentIndex) + " = "s + std::to_string(currentValue) + '\n';
-    ///    }, std::string{});
-    /// </example></code>
     /// TODO Implement initialValue as optional: "[Optional] Value to use as the first argument to the first call of the callback. If no initial value is supplied, the first element in the array will be used. Calling reduce on an empty array without an initial value is an error."
     template <typename Container, typename Function, typename Memo>
-    Memo reduceMap(const Container container, Function function, Memo initialValue)
+    Memo reduceObject(const Container& container, Function function, Memo initialValue)
     {
         // ResultContainer result;
-        auto keys = _::keys(container);
+        auto keys = _::keys2(container);
         for (const auto& key : keys) 
         {
-            initialValue = function(initialValue, container[key], key, container);
+			// const auto& value = container.at(key);
+			auto value = container.at(key);
+            initialValue = function(initialValue, value, key, container);
         }
         return initialValue;
     } 
-        //for (auto i = container.begin(); i != container.end(); ++i) {
-        //    function(*i, std::distance(container.begin(), i));
-        //}
 
     template <typename Container, typename Function, typename Memo>
-    Memo inject(const Container container, Function function, Memo initialValue)
+    Memo inject(const Container& container, Function function, Memo initialValue)
     {
         return reduce(container, function, initialValue);
     }
 
     template <typename Container, typename Function, typename Memo>
-    Memo foldl(const Container container, Function function, Memo initialValue)
+    Memo foldl(const Container& container, Function function, Memo initialValue)
     {
         return reduce(container, function, initialValue);
     }
 
     // reduce_right/foldr
     template <typename Container, typename Function, typename Memo>
-    Memo reduce_right(const Container container, Function function, Memo initialValue)
+    Memo reduce_right(const Container& container, Function function, Memo initialValue)
     {
         for (typename Container::const_reverse_iterator i = container.rbegin(); i != container.rend();
             ++i)
@@ -533,7 +521,7 @@ namespace _
     }
 
     template <typename Container, typename Function, typename Memo>
-    Memo foldr(const Container container, Function function, Memo initialValue)
+    Memo foldr(const Container& container, Function function, Memo initialValue)
     {
         return reduce_right(container, function, initialValue);
     }
