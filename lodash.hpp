@@ -139,81 +139,81 @@ namespace _
             static bool const value = true;
         };
 
-		template<typename T>
-		constexpr T clamp(T value, T min, T max) {
-			return (
-				value > max ? max :
-				value < min ? min :
-				value
-			);
-		}
+        template<typename T>
+        constexpr T clamp(T value, T min, T max) {
+            return (
+                value > max ? max :
+                value < min ? min :
+                value
+            );
+        }
     } // namespace helper
 
       // Collections
 
       // each/for_each
 
-	// http://en.cppreference.com/w/cpp/algorithm/for_each
+    // http://en.cppreference.com/w/cpp/algorithm/for_each
     template <typename Container, typename Function>
     void each(Container container, Function function)
     {
-		//function - function object, to be applied to the result of dereferencing every iterator in the range[first, last)
-		//The signature of the function should be equivalent to the following :
+        //function - function object, to be applied to the result of dereferencing every iterator in the range[first, last)
+        //The signature of the function should be equivalent to the following :
 
-		//	void fun(const Type &a);
+        //    void fun(const Type &a);
 
-		//The signature does not need to have `const &`.
+        //The signature does not need to have `const &`.
 
-		//The type Type must be such that an object of type InputIt can be dereferenced and then implicitly converted to Type.
+        //The type Type must be such that an object of type InputIt can be dereferenced and then implicitly converted to Type.
 
         std::for_each(container.begin(), container.end(), function);
     }
 
     template <typename Container, typename Function>
-	void each_with_distance(Container container, Function function)
-	{
-		//The signature of the function should be equivalent to the following :
+    void each_with_distance(Container container, Function function)
+    {
+        //The signature of the function should be equivalent to the following :
 
-		//	void fun(const Type &a, const size_t d);
-		for (auto i = container.begin(); i != container.end(); ++i) {
-			function(*i, std::distance(container.begin(), i));
-		}
-	}
+        //    void fun(const Type &a, const size_t d);
+        for (auto i = container.begin(); i != container.end(); ++i) {
+            function(*i, std::distance(container.begin(), i));
+        }
+    }
 
     template <typename Container, typename Function>
-	void each_iter(Container container, Function function)
-	{
-		//The signature of the function should be equivalent to the following :
+    void each_iter(Container container, Function function)
+    {
+        //The signature of the function should be equivalent to the following :
 
-		//	void fun(const Type &a, const size_t d);
-		for (auto i = container.begin(); i != container.end(); ++i) {
-			function(i);
-		}
-	}
+        //    void fun(const Type &a, const size_t d);
+        for (auto i = container.begin(); i != container.end(); ++i) {
+            function(i);
+        }
+    }
 
-	//  The full power of `each`.  Each invocation of iteratee is called 
-	//  with three arguments: (element, index, list). If list is an object, 
-	//  iteratee's arguments will be (value, key, list).  (MDN)
+    //  The full power of `each`.  Each invocation of iteratee is called 
+    //  with three arguments: (element, index, list). If list is an object, 
+    //  iteratee's arguments will be (value, key, list).  (MDN)
     template <typename Container, typename Function>
-	void each_key_value(Container container, Function function)
-	{
-		for (auto i = container.begin(); i != container.end(); ++i) {
-			auto key = i->first;
-			auto value = i->second;
-			function(value, key, container);
-		}
-	}
+    void each_key_value(Container container, Function function)
+    {
+        for (auto i = container.begin(); i != container.end(); ++i) {
+            auto key = i->first;
+            auto value = i->second;
+            function(value, key, container);
+        }
+    }
 
-	//  each - for nlohmann::json containers. iteratee has two arguments: (value, key). 
+    //  each - for nlohmann::json containers. iteratee has two arguments: (value, key). 
     template <typename Container, typename Function>
-	void each_json(Container container, Function function)
-	{
-		for (auto i = container.begin(); i != container.end(); ++i) {
-			auto key = i.key();
-			auto value = i.value();
-			function(value, key);
-		}
-	}
+    void each_json(Container container, Function function)
+    {
+        for (auto i = container.begin(); i != container.end(); ++i) {
+            auto key = i.key();
+            auto value = i.value();
+            function(value, key);
+        }
+    }
 
     template <typename Container, typename Function>
     void for_each(Container container, Function function)
@@ -230,7 +230,7 @@ namespace _
         for (auto& item : container) helper::add_to_container(result, function(item));
         //for (auto i = container.begin(); i != container.end(); ++i)
         //{
-        //	helper::add_to_container(result, function(*i));
+        //    helper::add_to_container(result, function(*i));
         //}
         return result;
     }
@@ -247,49 +247,62 @@ namespace _
         return result;
     }
 
-	// remove (lodash) - Removes all elements from array that predicate returns truthy for and returns an array of the removed elements.
-	// Note: Unlike _.filter, this method mutates array. Use _.pull to pull elements from an array by value.
-	// Note: for ease of use, this function does not return removed elements, use `removeAndReturn` instead
-    template <typename Container, typename Function>
-	void remove(Container& container, Function function) {
-		for ( auto i = container.begin(); i != container.end() ; )
-			function(*i) ? i = container.erase(i) : ++i;
-	}
-
-	// remove (lodash) - Removes all elements from array that predicate returns truthy for and returns an array of the removed elements.
-	// Note: Unlike _.filter, this method mutates array. Use _.pull to pull elements from an array by value.
+    // mapObject - Creates an array of values by running each element in collection thru iteratee. 
+    // The iteratee is invoked with two arguments: (value, key). -- sfink
     template <typename ResultContainer, typename Container, typename Function>
-	ResultContainer removeAndReturn(Container& container, Function function) {
+    ResultContainer mapObject(const Container& container, Function function)
+    {
         ResultContainer result;
-		for (auto i = container.begin(); i != container.end(); ) {
-			if (function(*i))
-				helper::add_to_container(result, *i), 
-				i = container.erase(i);
-			else
-				++i;
-		}
-	}
+        auto keys = keys(container);
+        for (const auto& key : keys) 
+            helper::add_to_container(result, function(container[key], key));
 
-	// pull (lodash) - Removes all given values from array using SameValueZero for equality comparisons.
-	// Note: Unlike `without`, this method mutates array. Use _.remove to remove elements from an array by predicate.
+        return result;
+    }
+
+    // remove (lodash) - Removes all elements from array that predicate returns truthy for and returns an array of the removed elements.
+    // Note: Unlike _.filter, this method mutates array. Use _.pull to pull elements from an array by value.
+    // Note: for ease of use, this function does not return removed elements, use `removeAndReturn` instead
+    template <typename Container, typename Function>
+    void remove(Container& container, Function function) {
+        for ( auto i = container.begin(); i != container.end() ; )
+            function(*i) ? i = container.erase(i) : ++i;
+    }
+
+    // remove (lodash) - Removes all elements from array that predicate returns truthy for and returns an array of the removed elements.
+    // Note: Unlike _.filter, this method mutates array. Use _.pull to pull elements from an array by value.
+    template <typename ResultContainer, typename Container, typename Function>
+    ResultContainer removeAndReturn(Container& container, Function function) {
+        ResultContainer result;
+        for (auto i = container.begin(); i != container.end(); ) {
+            if (function(*i))
+                helper::add_to_container(result, *i), 
+                i = container.erase(i);
+            else
+                ++i;
+        }
+    }
+
+    // pull (lodash) - Removes all given values from array using SameValueZero for equality comparisons.
+    // Note: Unlike `without`, this method mutates array. Use _.remove to remove elements from an array by predicate.
     template <typename Container>
     void pull(Container& container, typename Container::value_type const& value)
     {
-		for (auto i = container.begin(); i != container.end(); )
-			(*i == value) ? i = container.erase(i) : ++i;
+        for (auto i = container.begin(); i != container.end(); )
+            (*i == value) ? i = container.erase(i) : ++i;
     }
 
-	// pullAll (lodash) - This method is like _.pull except that it accepts an array of values to remove.
+    // pullAll (lodash) - This method is like _.pull except that it accepts an array of values to remove.
     // Note: Unlike _.difference, this method mutates array.
     template <typename Container1, typename Container2>
     void pullAll(Container1& container, Container2 const& values)
     {
 
-		// Hmmm.... if it's similar to difference, maybe we could leverage the existing `difference` function...
-		// However, that function looks complicated. Lets leverage `contains` instead. It's possibly less 
-		// efficient that using `difference` but simplicity wins today.
-		for (auto i = container.begin(); i != container.end(); )
-			contains(values, *i) ? i = container.erase(i) : ++i;
+        // Hmmm.... if it's similar to difference, maybe we could leverage the existing `difference` function...
+        // However, that function looks complicated. Lets leverage `contains` instead. It's possibly less 
+        // efficient that using `difference` but simplicity wins today.
+        for (auto i = container.begin(); i != container.end(); )
+            contains(values, *i) ? i = container.erase(i) : ++i;
     }
 
     // filter/select
@@ -308,8 +321,8 @@ namespace _
     }
 
 
-	// without - Creates an array excluding all given values using SameValueZero for equality comparisons.
-	// Note: Unlike `pull`, this method returns a new array.
+    // without - Creates an array excluding all given values using SameValueZero for equality comparisons.
+    // Note: Unlike `pull`, this method returns a new array.
     template <typename ResultContainer, typename Container>
     ResultContainer without(Container const& container, typename Container::value_type const& value)
     {
@@ -333,7 +346,7 @@ namespace _
         for (auto& item : container) helper::add_to_container(result, item);
         //for (auto i = container.begin(); i != container.end(); ++i)
         //{
-        //	helper::add_to_container(result, *i);
+        //    helper::add_to_container(result, *i);
         //}
         return result;
     }
@@ -343,11 +356,11 @@ namespace _
     ResultContainer keys(Container container)
     {
         ResultContainer result;
-		for (auto i = container.begin(); i != container.end(); ++i)
-		{
-			auto k = i->first;
-			helper::add_to_container(result, k);
-		}
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            auto k = i->first;
+            helper::add_to_container(result, k);
+        }
         //for (auto i = container.begin(); i != container.end(); ++i)
         //{
         //    helper::add_to_container(result, i->key());
@@ -355,86 +368,113 @@ namespace _
         return result;
     }
 
-	// MDN - The slice() method returns a shallow copy of a portion of an array into a 
-	// new array object selected from begin to end (end not included). 
-	// The original array will not be modified.
+    // MDN - The slice() method returns a shallow copy of a portion of an array into a 
+    // new array object selected from begin to end (end not included). 
+    // The original array will not be modified.
     template <typename ResultContainer, typename Container>
     ResultContainer slice(Container container, long long begin = 0, long long end = 0)
     {
-		//begin Optional
-		//	Zero - based index at which to begin extraction.
-		//	A negative index can be used, indicating an offset from the end of the sequence.slice(-2) extracts the last two elements in the sequence.
-		//	If begin is undefined, slice begins from index 0.
+        //begin Optional
+        //    Zero - based index at which to begin extraction.
+        //    A negative index can be used, indicating an offset from the end of the sequence.slice(-2) extracts the last two elements in the sequence.
+        //    If begin is undefined, slice begins from index 0.
 
-		//end Optional
-		//	Zero - based index before which to end extraction.slice extracts up to but not including end.
-		//	For example, slice(1, 4) extracts the second element through the fourth element(elements indexed 1, 2, and 3).
-		//	A negative index can be used, indicating an offset from the end of the sequence.slice(2, -1) extracts the third element through the second - to - last element in the sequence.
-		//	If end is omitted, slice extracts through the end of the sequence(arr.length).
-		//	If end is greater than the length of the sequence, slice extracts through the end of the sequence(arr.length).
+        //end Optional
+        //    Zero - based index before which to end extraction.slice extracts up to but not including end.
+        //    For example, slice(1, 4) extracts the second element through the fourth element(elements indexed 1, 2, and 3).
+        //    A negative index can be used, indicating an offset from the end of the sequence.slice(2, -1) extracts the third element through the second - to - last element in the sequence.
+        //    If end is omitted, slice extracts through the end of the sequence(arr.length).
+        //    If end is greater than the length of the sequence, slice extracts through the end of the sequence(arr.length).
 
-		const size_t len = container.size();
-		if (end < 1)
-			end = len - end;
+        const size_t len = container.size();
+        if (end < 1)
+            end = len - end;
 
-		if (begin < 0)
-			begin = len - begin - 1;
+        if (begin < 0)
+            begin = len - begin - 1;
 
-		begin = helper::clamp<size_t>(begin, 0, len - 1);
-		end   = helper::clamp<size_t>(end, 0, len);
+        begin = helper::clamp<size_t>(begin, 0, len - 1);
+        end   = helper::clamp<size_t>(end, 0, len);
 
         ResultContainer result;
-		size_t _index = 0;
-		for (auto i = container.begin(); i != container.end(); ++i)
-		{
-			auto index = _index++;
-			if (index >= end)
-				break;
-			if (index >= begin)
-				helper::add_to_container(result, *i);
-		}
+        size_t _index = 0;
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            auto index = _index++;
+            if (index >= end)
+                break;
+            if (index >= begin)
+                helper::add_to_container(result, *i);
+        }
         return result;
     }
 
+    // JavaScript reduce:
+    //Input:
+    //    [1, 2, 3].reduce(function(accumulator, currentValue, currentIndex, container) {
+    //        return accumulator + "Index: " + currentIndex + " = " + currentValue + "\n";
+    //    }, initialValue = "Output: \n");
+
+    //Output:
+    //    Index: 0 = 1
+    //    Index : 1 = 2
+    //    Index : 2 = 3
+
     // reduce/inject/foldl
+    /// <summary>Applies a function against an accumulator and each element in the container (from left to right) to reduce it to a single value.</summary>
+    /// <param name="container">The container.</param>
+    /// <param name="function">The callback, callback(<paramref name="initialValue">, currentValue)</param>
+    /// <param name="initialValue">Value to use as the first argument to the first call of the callback.</param>
+    /// <returns>The value that results from the reduction.</returns>
+    /// <example><code><![CDATA[
+    /// using fspath = std::experimental::filesystem::path;
+    /// template<typename Container>
+    /// std::string pathCombine(Container paths) {
+    ///     fspath path = _::reduce(Container, [](fspath _path, std::string segment) {
+    ///         return _path /= filepath(segment);
+    ///     }, fspath);
+    ///     return path.string();
+    /// }]]></code></example>
+    /// TODO Implement initialValue as optional: "[Optional] Value to use as the first argument to the first call of the callback. If no initial value is supplied, the first element in the array will be used. Calling reduce on an empty array without an initial value is an error."
+    /// TODO Implement full range of functionality as described in https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce?v=b
     template <typename Container, typename Function, typename Memo>
-    Memo reduce(const Container container, Function function, Memo memo)
+    Memo reduce(const Container container, Function function, Memo initialValue)
     {
         for (auto i = container.begin(); i != container.end(); ++i)
         {
-            memo = function(memo, *i);
+            initialValue = function(initialValue, *i);
         }
-        return memo;
+        return initialValue;
     }
 
     template <typename Container, typename Function, typename Memo>
-    Memo inject(const Container container, Function function, Memo memo)
+    Memo inject(const Container container, Function function, Memo initialValue)
     {
-        return reduce(container, function, memo);
+        return reduce(container, function, initialValue);
     }
 
     template <typename Container, typename Function, typename Memo>
-    Memo foldl(const Container container, Function function, Memo memo)
+    Memo foldl(const Container container, Function function, Memo initialValue)
     {
-        return reduce(container, function, memo);
+        return reduce(container, function, initialValue);
     }
 
     // reduce_right/foldr
     template <typename Container, typename Function, typename Memo>
-    Memo reduce_right(const Container container, Function function, Memo memo)
+    Memo reduce_right(const Container container, Function function, Memo initialValue)
     {
         for (typename Container::const_reverse_iterator i = container.rbegin(); i != container.rend();
             ++i)
         {
-            memo = function(memo, *i);
+            initialValue = function(initialValue, *i);
         }
-        return memo;
+        return initialValue;
     }
 
     template <typename Container, typename Function, typename Memo>
-    Memo foldr(const Container container, Function function, Memo memo)
+    Memo foldr(const Container container, Function function, Memo initialValue)
     {
-        return reduce_right(container, function, memo);
+        return reduce_right(container, function, initialValue);
     }
 
     // find/detect
@@ -686,7 +726,7 @@ namespace _
         template <typename Argument, typename Function>
         class TransformCompare
 #if _HAS_CXX17 == 0
-			: std::binary_function<Argument, Argument, bool>
+            : std::binary_function<Argument, Argument, bool>
 #endif
         {
         public:
@@ -1064,9 +1104,9 @@ namespace _
     template <typename ResultContainer, typename Container1, typename Container2>
     ResultContainer difference2(Container1 const& container1, Container2 const& container2)
     {
-		return filter<ResultContainer>(container1, [&](const auto& value) {
-				return !contains(container2, value);
-		});
+        return filter<ResultContainer>(container1, [&](const auto& value) {
+                return !contains(container2, value);
+        });
     }
 
     // zip
@@ -1092,27 +1132,27 @@ namespace _
             : std::distance(container.begin(), value_position);
     }
 
-	// `indexOf` that accepts `Container::value_type = std::pair<K, V>`
+    // `indexOf` that accepts `Container::value_type = std::pair<K, V>`
     template <typename Container, typename Value>
     int indexOfMap(Container& container, Value value)
     {
-		// https://stackoverflow.com/questions/12742472/how-to-get-matching-key-using-the-value-in-a-map-c
+        // https://stackoverflow.com/questions/12742472/how-to-get-matching-key-using-the-value-in-a-map-c
 
-		auto value_position = std::find_if(std::begin(container), std::end(container), [&](const auto& pair)
-		{
-			return pair.second == value;
-		});
+        auto value_position = std::find_if(std::begin(container), std::end(container), [&](const auto& pair)
+        {
+            return pair.second == value;
+        });
 
         return value_position == container.end() ? -1
             : std::distance(container.begin(), value_position);
     }
 
 
-	// `contains` that accepts `Container::value_type = std::pair<K, V>`
+    // `contains` that accepts `Container::value_type = std::pair<K, V>`
     template <typename Container, typename Value>
     bool containsMap(Container container, Value value)
     {
-		return indexOfMap(container, value) != -1;
+        return indexOfMap(container, value) != -1;
     }
 
     template <typename Container>
@@ -1176,35 +1216,35 @@ namespace _
     }
 
 #ifdef UNDERSCORE_BONUS
-	// at
-	template <typename Container>
-	auto& at(Container& container, typename Container::key_type key)
-	{
-		return container.at(key);
-	}
+    // at
+    template <typename Container>
+    auto& at(Container& container, typename Container::key_type key)
+    {
+        return container.at(key);
+    }
 
-	template <typename Container>
-	auto tryAndGet(Container container, const typename Container::key_type key, typename Container::value_type& value) {
-		if (contains(container, key)) {
-			value = at(container, key);
-			return true;
-		}
-		return false;
-	}
+    template <typename Container>
+    auto tryAndGet(Container container, const typename Container::key_type key, typename Container::value_type& value) {
+        if (contains(container, key)) {
+            value = at(container, key);
+            return true;
+        }
+        return false;
+    }
 
-	template <typename Container>
-	auto& getOrCall(Container container, const typename Container::key_type key, typename Container::value_type(*function)(typename Container::key_type)) {
-		if (!contains(container, key))
-			helper::add_to_container(container, key, function(key));
-		return at(container, key);
-	}
+    template <typename Container>
+    auto& getOrCall(Container container, const typename Container::key_type key, typename Container::value_type(*function)(typename Container::key_type)) {
+        if (!contains(container, key))
+            helper::add_to_container(container, key, function(key));
+        return at(container, key);
+    }
 
-	template <typename Container>
-	auto& getOrDefault(Container container, const typename Container::key_type key, const typename Container::value_type& value) {
-		if (!contains(container, key))
-			helper::add_to_container(container, key, value);
-		return at(container, key);
-	}
+    template <typename Container>
+    auto& getOrDefault(Container container, const typename Container::key_type key, const typename Container::value_type& value) {
+        if (!contains(container, key))
+            helper::add_to_container(container, key, value);
+        return at(container, key);
+    }
 #endif
 
     // Functions
