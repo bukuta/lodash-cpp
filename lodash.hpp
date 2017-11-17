@@ -1,6 +1,7 @@
 #ifndef UNDERSCORE_UNDERSCORE_H_
 #define UNDERSCORE_UNDERSCORE_H_
 #define UNDERSCORE_BONUS
+#define _VECTOR(...) <std::vector<__VA_ARGS__>>
 
 #include <cstdlib>
 #include <algorithm>
@@ -93,36 +94,37 @@ namespace _
         };
 
         template <typename Container>
-        typename enable_if<MemberAdditionCapabilities<Container>::has_insert, void>::type insert(
-            Container& container, typename Container::value_type const& value)
+        typename enable_if<MemberAdditionCapabilities<Container>::has_insert, void>::type 
+			insert(Container& container, typename Container::value_type const& value)
         {
             container.insert(value);
         }
 
         template <typename Container>
-        typename enable_if<MemberAdditionCapabilities<Container>::has_push_back, void>::type push_back(
-            Container& container, typename Container::value_type const& value)
+        typename enable_if<MemberAdditionCapabilities<Container>::has_push_back, void>::type 
+
+			push_back(Container& container, typename Container::value_type const& value)
         {
             container.push_back(value);
         }
 
         template <typename Container>
-        typename enable_if<!MemberAdditionCapabilities<Container>::has_push_back, void>::type push_back(
-            Container& container, typename Container::value_type const& value)
-        {
-            insert(container, value);
-        }
+		typename enable_if<!MemberAdditionCapabilities<Container>::has_push_back, void>::type
+			push_back(Container& container, typename Container::value_type const& value)
+		{
+			insert(container, value);
+		}
 
         template <typename Container>
-        typename enable_if<HasSupportedAdditionMethod<Container>::value, void>::type add_to_container(
-            Container& container, typename Container::value_type const& value)
+        typename enable_if<HasSupportedAdditionMethod<Container>::value, void>::type 
+			add_to_container(Container& container, typename Container::value_type const& value)
         {
             push_back(container, value);
         }
 
         template <typename Container>
-        typename enable_if<HasSupportedAdditionMethod<Container>::value, void>::type add_to_container(
-            Container& container, typename Container::key_type const& key, typename Container::value_type const& value)
+        typename enable_if<HasSupportedAdditionMethod<Container>::value, void>::type 
+			add_to_container(Container& container, typename Container::key_type const& key, typename Container::value_type const& value)
         {
             container.insert(container, value);
         }
@@ -223,7 +225,7 @@ namespace _
 
     // map/collect
     template <typename ResultContainer, typename Container, typename Function>
-    ResultContainer map(Container container, Function function)
+    ResultContainer map(const Container& container, Function function)
     {
         ResultContainer result;
 
@@ -325,9 +327,17 @@ namespace _
     // Note: Unlike `pull`, this method returns a new array.
     template <typename ResultContainer, typename Container>
     ResultContainer without(Container const& container, typename Container::value_type const& value)
-    {
+    { 
+		// sorry, you'll have to work out your own checks for C++17 
+		return filter<ResultContainer>(container, [value](const auto& _) {
+			return value != _;
+			//return std::not_equal_to<typename Container::value_type>(_, value);
+		});
+#if 0
+		// deprecated in c++11, removed in c++17
         return filter<ResultContainer>(
             container, std::bind2nd(std::not_equal_to<typename Container::value_type>(), value));
+#endif
     }
 
 
@@ -343,11 +353,25 @@ namespace _
     {
         ResultContainer result;
         // zorg c++11 optimisation
-        for (auto& item : container) helper::add_to_container(result, item);
-        //for (auto i = container.begin(); i != container.end(); ++i)
-        //{
+        for (const auto& item : container) helper::add_to_container(result, item);
+        // previously: (and still required for associate containers, e.g. map
+
+        // for (auto i = container.begin(); i != container.end(); ++i)
+        // {
         //    helper::add_to_container(result, *i);
-        //}
+        // }
+        return result;
+    }
+
+    template <typename ResultContainer, typename Container>
+    ResultContainer values2(Container container)
+    {
+        ResultContainer result;
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+			auto value = i->second;
+            helper::add_to_container(result, value);
+        }
         return result;
     }
 
@@ -403,11 +427,11 @@ namespace _
         if (begin < 0)
             begin = len - begin - 1;
 
-        begin = helper::clamp<size_t>(begin, 0, len - 1);
-        end   = helper::clamp<size_t>(end, 0, len);
+        begin = helper::clamp<long long>(begin, 0, len - 1);
+        end   = helper::clamp<long long>(end, 0, len);
 
         ResultContainer result;
-        size_t _index = 0;
+        long long _index = 0;
         for (auto i = container.begin(); i != container.end(); ++i)
         {
             auto index = _index++;
@@ -445,10 +469,13 @@ namespace _
     template <typename Container, typename Function, typename Memo>
     Memo reduce(const Container& container, Function function, Memo initialValue)
     {
-        for (auto i = container.begin(); i != container.end(); ++i)
-        {
-            initialValue = function(initialValue, *i);
-        }
+		each(container, [&](const auto& i) {
+            initialValue = function(initialValue, i);
+		});
+        //for (auto i = container.begin(); i != container.end(); ++i)
+        //{
+        //    initialValue = function(initialValue, *i);
+        //}
         return initialValue;
     } 
 
@@ -520,6 +547,21 @@ namespace _
         return initialValue;
     }
 
+	/// <summary>A copy of std::find_if</summary>
+	/// <param name="first">Iterator first.</param>
+	/// <param name="last">Iterator last.</param>
+	/// <param name="predicate">predicate</param>
+	/// <returns></returns>
+	template<class InputIterator, class UnaryPredicate>
+	InputIterator find_if(InputIterator first, InputIterator last, UnaryPredicate predicate)
+	{
+		while (first != last) {
+			if (predicate(*first)) return first;
+			++first;
+		}
+		return last;
+	}
+
     template <typename Container, typename Function, typename Memo>
     Memo foldr(const Container& container, Function function, Memo initialValue)
     {
@@ -527,17 +569,36 @@ namespace _
     }
 
     // find/detect
-    template <typename Container, typename Predicate>
+    /// <summary>Iterates over elements of collection, returning the first element predicate returns truthy for. The predicate is invoked with one argument: (value).</summary>
+    /// <param name="container">The container.</param>
+    /// <param name="predicate">The predicate.</param>
+    /// <returns></returns>
+	/// <remarks>This doesn't translate well into C++, as it should (by JavaScript underscore standards) return an actual element, or <c>undefined</c>.  While we could simulate <c>undefined</c> with C++17 <c>std::optional</c> usage would not be more convenient that returning an iterator.
+	template <typename Container, typename Predicate>
     typename Container::iterator find(Container& container, Predicate predicate)
     {
-        return find_if(container.begin(), container.end(), predicate);
+        return _::find_if(container.begin(), container.end(), predicate);
     }
 
-    template <typename Container, typename Predicate>
-    typename Container::iterator detect(Container& container, Predicate predicate)
+    /// <summary>Iterates over elements of an associate collection, returning the first element predicate returns truthy for. The predicate is invoked with three arguments: (value, index|key, collection).</summary>
+    /// <param name="container">The container.</param>
+    /// <param name="predicate">The predicate (value, key, collection)</param>
+    /// <returns>The key of the first object found, or {}</returns>
+    template <typename Container, typename Function, typename Memo>
+    Memo findObject(const Container& container, Function predicate)
     {
-        return find(container, predicate);
-    }
+        // ResultContainer result;
+        auto keys = _::keys2(container);
+        for (const auto& key : keys) 
+        {
+			// const auto& value = container.at(key);
+			auto value = container.at(key);
+            auto found = function(value, key, container);
+			if (found)
+				return key;
+        }
+		return {};
+    } 
 
     template <typename ResultContainer, typename Container, typename Predicate>
     ResultContainer select(Container container, Predicate predicate)
@@ -615,8 +676,8 @@ namespace _
 
     // invoke
     template <typename ResultContainer, typename Container, typename Function>
-    typename helper::enable_if<!helper::is_void<ResultContainer>::value, ResultContainer>::type invoke(
-        Container container, Function function)
+    typename helper::enable_if<!helper::is_void<ResultContainer>::value, ResultContainer>::type 
+		invoke(Container container, Function function)
     {
         ResultContainer result;
         for (typename Container::iterator i = container.begin(); i != container.end(); ++i)
@@ -627,8 +688,8 @@ namespace _
     }
 
     template <typename ResultContainer, typename Container, typename Function>
-    typename helper::enable_if<helper::is_void<ResultContainer>::value, void>::type invoke(
-        Container container, Function function)
+    typename helper::enable_if<helper::is_void<ResultContainer>::value, void>::type 
+		invoke(Container container, Function function)
     {
         for (typename Container::iterator i = container.begin(); i != container.end(); ++i)
         {
@@ -639,7 +700,7 @@ namespace _
     // pluck
     // Called like `_::pluck<vector<int>>(container, &value_type::member)`
     template <typename ResultContainer, typename Container, typename Member>
-    ResultContainer pluck(Container const& container, Member member)
+	ResultContainer pluck(Container const& container, Member member)
     {
         ResultContainer result;
         for (auto i = container.begin(); i != container.end(); ++i)
@@ -739,6 +800,62 @@ namespace _
             }
         }
         return min.position;
+    }
+
+	/// <summary>Returns an array of the elements in container1 and container2 that match, terminating at the first mismatch</summary>
+	/// <param name="container1">container1.</param>
+	/// <param name="container2">container2.</param>
+	/// <returns></returns>
+	/// <remarks>not an underscore or lodash function</remarks>
+	template <typename ResultContainer, typename Container1, typename Container2>
+    ResultContainer match_consecutive(Container1 const& container1, Container2 const& container2)
+    {
+        ResultContainer result;
+
+        typename Container1::const_iterator left  = container1.begin();
+        typename Container2::const_iterator right = container2.begin();
+		while (left  != container1.end() && 
+			   right != container2.end())
+		{
+			if (*left != *right)
+				break;
+            helper::add_to_container(result, *left);
+
+			*left++, *right++;
+		}
+
+		return result;
+    }
+	
+
+	// compare
+	/// <summary>Compares the contents of two arrays</summary>
+	/// <param name="container1">container1.</param>
+	/// <param name="container2">container2.</param>
+	/// <returns>-1, 0 or 1 as per <c>strcmp</c></returns>
+	/// <remarks>not an underscore or lodash function</remarks>
+	template <typename Container1, typename Container2>
+    int compare(const Container1& container1, const Container2& container2)
+    {
+        typename Container1::const_iterator left  = container1.begin();
+        typename Container2::const_iterator right = container2.begin();
+		while (left  != container1.end() && 
+			   right != container2.end())
+		{
+			if (*left != *right)
+				return *left < *right ? -1 : 1;
+
+			*left++, *right++;
+		}
+
+		// shorter container "win" (is less than)
+		return
+			// right is longer, ergo left is less
+			(right != container2.end()) ? -1 :
+			// left is longer, ergo right is less
+			(left  != container2.end()) ? +1 :
+			// both of equal length, ergo equal
+			0;
     }
 
     // sort_by
@@ -871,6 +988,22 @@ namespace _
         return first<ResultContainer>(container, count);
     }
 
+	/// <summary>Similar to <paramref="first" /> but returns an array of between 0 and 1 elements</summary>
+	/// <param name="container">The container.</param>
+	/// <returns></returns>
+	template <typename ResultContainer, typename Container>
+    ResultContainer first_jquery(Container& container)
+    {
+
+        ResultContainer result;
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            helper::add_to_container(result, *i);
+			break;
+        }
+        return result;
+    }
+
     // initial
     template <typename ResultContainer, typename Container>
     ResultContainer initial(Container& container)
@@ -930,6 +1063,32 @@ namespace _
     ResultContainer tail(Container& container, int index)
     {
         return rest<ResultContainer>(container, index);
+    }
+
+    // concat
+    /// <summary>Creates a new array concatenating array <paramref="container1" /> with <paramref="container2" /></summary>
+    /// <param name="container1">container1</param>
+    /// <param name="container2">container2</param>
+    /// <returns></returns>
+	template <typename ResultContainer, typename Container1, typename Container2>
+    ResultContainer concat(const Container1& container1, const Container2& container2)
+    {
+        ResultContainer result;
+
+        // This may be a terrible idea, if reserve or size is not defined.
+		// result.reserve(container1.size() + container2.size());
+		each(container1, [&result](auto value) { helper::add_to_container(result, value);  });
+		each(container2, [&result](auto value) { helper::add_to_container(result, value);  });
+
+		//vector1.insert(vector1.end(), vector2.begin(), vector2.end());
+        //for (auto i = container.begin(); i != container.end(); ++i)
+        //{
+        //    if (static_cast<bool>(*i))
+        //    {
+        //        helper::add_to_container(result, *i);
+        //    }
+        //}
+        return result;
     }
 
     // compact
@@ -1010,15 +1169,15 @@ namespace _
     }
 
     template <typename ResultContainer, bool shallow, typename Container>
-    typename helper::enable_if<shallow == true, ResultContainer>::type flatten(
-        Container const& container)
+    typename helper::enable_if<shallow == true, ResultContainer>::type 
+		flatten(Container const& container)
     {
         return helper::flatten_one_layer<ResultContainer>(container);
     }
 
     template <typename ResultContainer, bool shallow, typename Container>
-    typename helper::enable_if<shallow == false, ResultContainer>::type flatten(
-        Container const& container)
+    typename helper::enable_if<shallow == false, ResultContainer>::type 
+		flatten(Container const& container)
     {
         return flatten<ResultContainer>(container);
     }
@@ -1035,16 +1194,29 @@ namespace _
         }
 
         std::vector<Key> memo;
-        for (std::pair<typename std::vector<Key>::const_iterator, typename Container::const_iterator> i = std::make_pair(keys.begin(), container.begin());
-            i.first != keys.end(); ++i.first, ++i.second)
-        {
-            if (is_sorted ? !memo.size() || *last(memo) != *i.first : !include(memo, *i.first))
+
+        for (
+			std::pair<typename std::vector<Key>::const_iterator, typename Container::const_iterator> i = std::make_pair(keys.begin(), container.begin())
+			; i.first != keys.end()
+			; ++i.first, ++i.second) 
+		{
+            if (is_sorted ? !memo.size() || *last(memo) != *i.first : !includes(memo, *i.first))
             {
                 memo.push_back(*i.first);
                 helper::add_to_container(result, *i.second);
             }
         }
         return result;
+    }
+
+	/// <summary>This method is like _.uniq except that it accepts iteratee which is invoked for each element in array to generate the criterion by which uniqueness is computed. The order of result values is determined by the order they occur in the array. The iteratee is invoked with one argument</summary>
+	/// <param name="container">The container.</param>
+    /// <param name="function">iteratee(<paramref name="Key" /> identity)</param>
+	/// <returns></returns>
+	template <typename ResultContainer, typename Key, typename Container, typename Function>
+    ResultContainer uniqBy(Container const& container, Function function)
+    {
+        return uniq<ResultContainer, Key>(container, false, function);
     }
 
     template <typename ResultContainer, typename Key, typename Container, typename Function>
@@ -1104,6 +1276,12 @@ namespace _
         return uniq<ResultContainer>(container, false);
     }
 
+    template <typename ResultContainer, typename Container, typename Function>
+    ResultContainer unique(Container const& container, Function function)
+    {
+        return uniq<ResultContainer>(container, false);
+    }
+
     // union_of
     template <typename ResultContainer, typename Container1, typename Container2>
     ResultContainer union_of(Container1 const& container1, Container2 const& container2)
@@ -1159,13 +1337,45 @@ namespace _
     }
 
     // zip
-    template <typename ResultContainer, typename Container1, typename Container2>
+	/// <summary>Merges together the values of each of the arrays with the values at the corresponding position. Useful when you have separate data sources that are coordinated through matching array indexes.
+	/// </summary>
+	/// <param name="container1">The container1.</param>
+	/// <param name="container2">The container2.</param>
+	/// <returns>A sequential container of size <c>min(keys.size(), values.size())</c></returns>
+    /// <example><code><![CDATA[// JavaScript example from underscore.org
+	/// _.zip(['moe', 'larry', 'curly'], [30, 40, 50], [true, false, false]);
+	/// // => [["moe", 30, true], ["larry", 40, false], ["curly", 50, false]]    /// }]]></code></example>
+	/// <remarks>Limited to 2 arrays</remarks>
+	/// <remarks>lodash version should actually take an array of arrays as a single argument</remarks>
+	template <typename ResultContainer, typename Container1, typename Container2>
     ResultContainer zip(const Container1& container1, const Container2& container2)
     {
         ResultContainer result;
         typename Container1::const_iterator left = container1.begin();
         typename Container2::const_iterator right = container2.begin();
         while (left != container1.end() && right != container2.end())
+        {
+            helper::add_to_container(result, typename ResultContainer::value_type(*left++, *right++));
+        }
+        return result;
+    }
+	
+	/// <summary>Converts arrays into objects. Pass a list of keys, and a list of values. If duplicate keys exist, the last value wins.</summary>
+	/// <param name="keys">The keys.</param>
+	/// <param name="values">The values.</param>
+	/// <returns>An associative container of size <c>min(keys.size(), values.size())</c></returns>
+    /// <example><code><![CDATA[// JavaScript example from https://lodash.com/docs/4.17.4#zipObject
+	/// _.zipObject(['a', 'b'], [1, 2]);
+	/// // => { 'a': 1, 'b': 2 }	/// <remarks>Limited to 2 arrays</remarks>
+	/// <remarks>a.k.a. underscore's <c>object()</c> function, when passing a list of keys, and a list of values</remarks>
+	/// <remarks></remarks>
+	template <typename ResultContainer, typename Container1, typename Container2>
+    ResultContainer zipObject(const Container1& keys, const Container2& values)
+    {
+        ResultContainer result;
+        typename Container1::const_iterator left = keys.begin();
+        typename Container2::const_iterator right = values.begin();
+        while (left != keys.end() && right != values.end())
         {
             helper::add_to_container(result, typename ResultContainer::value_type(*left++, *right++));
         }
@@ -1264,6 +1474,26 @@ namespace _
         return range<ResultContainer>(0, stop, 1);
     }
 
+    template<typename T>
+    auto dereference(T _) {
+        return *_;
+    }
+
+    template<typename T>
+	auto identity(const T& _) {
+		return _;
+	}
+
+	/// <summary>Invokes the iteratee n times, returning an array of the results of each invocation. The iteratee is invoked with one argument; (index).</summary>
+	/// <param name="n">The number of times to invoke <paramref="iteratee" /></param>
+	/// <param name="iteratee">The iteratee, iteratee(size_t n)</param>
+	/// <returns>Array of the returned values</returns>
+	template<typename ResultContainer, typename Function>
+    ResultContainer times(size_t n, Function iteratee) {
+		auto accum = range<std::vector<size_t>>(n);
+		return map<ResultContainer>(accum, iteratee);
+	};
+
 #ifdef UNDERSCORE_BONUS
     // at
     template <typename Container>
@@ -1294,6 +1524,23 @@ namespace _
             helper::add_to_container(container, key, value);
         return at(container, key);
     }
+
+	/// <summary>Perumtate the specified containers.</summary>
+	/// <param name="container1">container 1.</param>
+	/// <param name="container2">container 2.</param>
+	/// <param name="iteratee">The iteratee, iteratee(a, b)</param>
+	/// <returns>Unique permutations of the two containers passed through iteratee</returns>
+	template <typename ResultContainer, typename Container1, typename Container2, typename Function>
+	ResultContainer permutate(const Container1& container1, const Container2& container2, Function iteratee)
+	{
+		ResultContainer result;
+		for (auto i = 0; i < container1.size(); i++) {
+			for (auto j = 0; j < container2.size(); j++) {
+				helper::add_to_container(result, iteratee(container1[i], container2[j]));
+			}
+		}
+		return result;
+	}
 #endif
 
     // Functions
@@ -1368,6 +1615,7 @@ namespace _
     class Wrapper
     {
     public:
+		// what's this for?
         typedef Container value_type;
         Wrapper(Container container)
             : container_(container)
@@ -1384,6 +1632,12 @@ namespace _
         {
             _::each(container_, function);
             return *this;
+        }
+
+        template <typename Function, typename ResultContainer = std::vector<typename Container::value_type>>
+        Wrapper<ResultContainer> filter(Function function)
+        {
+			return chain(_::filter<ResultContainer>(container_, function));
         }
 
         template <typename ResultContainer, typename Function>

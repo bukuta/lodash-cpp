@@ -22,7 +22,7 @@
 // #include <queue>
 // #include <random>
 // #include <regex>
-// #include <set>
+#include <set>
 #include <sstream>
 // #include <stdarg.h>
 // #include <stdint.h>
@@ -39,6 +39,7 @@
 // #include "test/json.hpp"
 
 using namespace std::string_literals; 
+using vector_string = std::vector<std::string>;
 
 #define TEST(NAME, ...) \
     std::cout << "\n\n********\n" << #NAME << ":\n" << (__VA_ARGS__)();
@@ -87,7 +88,7 @@ int main(int argc, const char** argv) {
                 {"b", 2},
                 {"c", 3}
             };
-            return join(_::keys<std::vector<std::string>>(m), ", ");
+            return join(_::keys<vector_string>(m), ", ");
     });
     TEST(keys2, [&]{
             std::map<std::string, int> m = {
@@ -118,5 +119,87 @@ int main(int argc, const char** argv) {
                         + '\n'
                         ;
                 }, "Output: "s);
+    });
+    TEST(values<std::map>, [&]{
+            std::map<int, std::string> m = {
+                {1, "a" },
+                {2, "b" },
+                {3, "c" }
+            };
+            auto result = _::values2<vector_string>(m);
+            return join(result, ", ");
+    });
+    TEST(values<std::set>, [&]{
+            std::set<std::string> m = 
+                {"a", "b", "c"}
+            ;
+            auto result = _::values<vector_string>(m);
+            return join(result, ", ");
+    });
+    TEST(values<std::vector>, [&]{
+            vector_string m = 
+                {"a", "b", "c"}
+            ;
+            auto result = _::values<vector_string>(m);
+            return join(result, ", ");
+    });
+    TEST(concat<std::vector>, [&]{
+            vector_string a = {"a", "b", "c"};
+            vector_string b = {"a", "b", "c"};
+            auto result = _::concat<vector_string>(a, b);
+            return join(result, ", ");
+    });
+    TEST(reduce<std::vector>, [&]{
+            vector_string a = {"a", "b", "c"};
+            a = _::reduce(a, [](auto& accum, const auto& curr) { return _::concat<vector_string>(accum, vector_string{ curr + "2" });  }, a);
+            return join(a, ", ");
+    });
+    TEST(uniqBy<std::vector>(_::identity), [&]{
+            vector_string a = {"a", "b", "b", "c"};
+            vector_string result = _::uniqBy<vector_string, std::string>(a, [](const auto& _) { return _; });
+            return join(result, ", ");
+    });
+    TEST(combinate, [&]{
+            vector_string a = {"cat ", "dog ", "lion ", "hill ", "mountain "};
+            vector_string b = {"mountain", "lion"};
+            auto result = _::permutate<vector_string>(a, b, [](const auto& a, const auto& b) {
+                    return a + b;
+            });
+            return join(result, ", ");
+            // return join(result, ", ");
+    });
+    TEST(flatten, [&]{
+            vector_string a = {"cat", "dog", "lion", "hill", "mountain"};
+            vector_string b = {"mountain", "lion", "a", "b", "c"};
+            std::vector<vector_string> c = { a, b };
+            auto result = _::helper::flatten_one_layer<vector_string>(c);
+
+            return join(result, ", ");
+            // return join(result, ", ");
+    });
+    TEST(chain, [&]{
+            vector_string a = {"cat", "dog", "lion", "hill", "mountain"};
+            vector_string result;
+            _::chain(a)
+                    .filter([=](const auto& _) { return _[1] == 'i'; })
+                    .each(  [&](const auto& _) { result.emplace_back(_); });
+
+            return join(result, ", ");
+    });
+    TEST(common, [&]{
+            vector_string a = {"cat", "dog", "lion", "hill", "mountain"};
+            vector_string b = {"cat", "dog", "hill", "lion", "mountain"};
+            auto result = _::match_consecutive<vector_string>(a, b);
+
+            return join(result, ", ");
+            // return join(result, ", ");
+    });
+    TEST(compare, [&]{
+            vector_string a = {"cat", "dog", "a_lion", "hill", "mountain"};
+            vector_string b = {"cat", "dog", "hill", "lion", "mountain"};
+            auto result = _::compare(a, b);
+
+            return std::to_string(result);
+            // return join(result, ", ");
     });
 }
