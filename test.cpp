@@ -34,15 +34,18 @@
 // #include <unordered_map>
 // #include <unordered_set>
 #include <vector>
+#include <algorithm>
 
 #include "lodash.hpp"
-// #include "test/json.hpp"
+#include "test/json.hpp"
 
 using namespace std::string_literals; 
 using vector_string = std::vector<std::string>;
+using json = nlohmann::json;
+
 
 #define TEST(NAME, ...) \
-    std::cout << "\n\n********\n" << #NAME << ":\n" << (__VA_ARGS__)();
+    std::cout << "\n\n********\n" << #NAME << ":" << std::endl << (__VA_ARGS__)() << std::endl;
 
 template<typename T>
 std::string join(const T& elements, const char* const separator) {
@@ -73,6 +76,9 @@ int main(int argc, const char** argv) {
                        // {"value", 42.99}
                    // }}
     // };
+        // {"happy", true},
+        // {"name", "Niels"},
+        // {"nothing", nullptr},
 
     TEST(reduceArray, []{
             std::vector<int> v{ 1, 2, 3 };
@@ -83,20 +89,62 @@ int main(int argc, const char** argv) {
     });
 
     TEST(keys, [&]{
-            std::map<std::string, int> m = {
-                {"a", 1},
-                {"b", 2},
-                {"c", 3}
+            std::map<std::string, std::string> m = {
+                {"a", "1"},
+                {"b", "2"},
+                {"c", "3"}
             };
             return join(_::keys<vector_string>(m), ", ");
     });
     TEST(keys2, [&]{
+            std::map<std::string, std::string> m = {
+                {"a", "1"},
+                {"b", "2"},
+                {"c", "3"}
+            };
+            return join(_::keys2(m), ", ");
+    });
+    TEST(each_key_value, [&]{
+            std::map<std::string, std::string> m = {
+                {"a", "1"},
+                {"b", "2"},
+                {"c", "3"}
+            };
+            vector_string result;
+            _::each_key_value(m, [&](const std::string& _, const std::string&, const auto&) {
+                result.push_back(_);
+            });
+            return join(result, ", ");
+    });
+    TEST(each_key_value<iterator>, [&]{
+            std::map<std::string, std::string> m = {
+                {"a", "1"},
+                {"b", "2"},
+                {"c", "3"}
+            };
+            vector_string result;
+            _::each_key_value(m.begin(), m.end(), [&](const std::string& _, const std::string& __) {
+                result.push_back(_ + ':' + __);
+            });
+            return join(result, ", ");
+    });
+    TEST(keys_internal, [&]{
+            json m = {
+                    {"a", "x"},
+                    {"b", "y"},
+                    {"c", "z"}
+            };
+            vector_string results;
+            _::keys_internal(results, m);
+            return join(results, ", ");
+    });
+    TEST(sum, [&]{
             std::map<std::string, int> m = {
                 {"a", 1},
                 {"b", 2},
                 {"c", 3}
             };
-            return join(_::keys2(m), ", ");
+            return std::to_string(_::sum(_::valuesObject _VECTOR(int) (m)));
     });
     TEST(reduceObject, [&]{
             std::map<std::string, int> m = {
@@ -120,13 +168,13 @@ int main(int argc, const char** argv) {
                         ;
                 }, "Output: "s);
     });
-    TEST(values<std::map>, [&]{
+    TEST(valuesObject<std::map>, [&]{
             std::map<int, std::string> m = {
                 {1, "a" },
                 {2, "b" },
                 {3, "c" }
             };
-            auto result = _::values2<vector_string>(m);
+            auto result = _::valuesObject<vector_string>(m);
             return join(result, ", ");
     });
     TEST(values<std::set>, [&]{
@@ -143,6 +191,55 @@ int main(int argc, const char** argv) {
             auto result = _::values<vector_string>(m);
             return join(result, ", ");
     });
+    TEST(values<json_object>, [&]{
+            json m = {
+                    {"x", "a"},
+                    {"y", "b"},
+                    {"z", "c"}
+            };
+            auto result = _::values<vector_string>(m);
+            return join(result, ", ");
+    });
+    // TEST(values<json_array>, [&]{
+            // json m = { {"a", "b", "c"} };
+            // auto result = _::values<vector_string>(m);
+            // return join(result, ", ");
+    // });
+
+
+    TEST(pairs<std::set>, [&]{ // 
+            std::map<std::string, std::string> m = {
+                    {"x", "a"},
+                    {"y", "b"},
+                    {"z", "c"}
+            };
+            auto result = _::pairs<vector_string>(m);
+            return join(result, ", ");
+    });
+    // TEST(pairs<std::vector>, [&]{ // 
+            // vector_string m = 
+                // {"a", "b", "c"}
+            // ;
+            // auto result = _::pairs<vector_string>(m);
+            // return join(result, ", ");
+    // });
+    // TEST(pairs<json_array>, [&]{
+            // json m = { {"a", "b", "c", "d", "e", "f" } };
+            // auto result = _::pairs<vector_string>(m);
+            // return join(result, ", ");
+    // });
+    // TEST(pairs<json_object>, [&]{
+            // json m = {
+                    // {"x", "a"},
+                    // {"y", "b"},
+                    // {"z", "c"}
+            // };
+            // auto result = _::pairs<vector_string>(m);
+            // return join(result, ", ");
+    // });
+
+
+
     TEST(concat<std::vector>, [&]{
             vector_string a = {"a", "b", "c"};
             vector_string b = {"a", "b", "c"};
@@ -201,5 +298,58 @@ int main(int argc, const char** argv) {
 
             return std::to_string(result);
             // return join(result, ", ");
+    });
+    TEST(compare2, [&]{
+            vector_string a = {"cat", "dog", "lion", "mountain"};
+            vector_string b = {"cat", "dog", "lion", "mountain"};
+            auto result = _::compare(a, b);
+
+            return std::to_string(result);
+            // return join(result, ", ");
+    });
+    TEST(slice(0, -1), [&]{
+            vector_string a = {"cat", "dog", "a_lion", "hill", "mountain"};
+            auto result = _::slice<vector_string>(a, 0, -2);
+
+            return join(result, ", ");
+    });
+    TEST(slice(-1, 0), [&]{
+            vector_string a = {"cat", "dog", "a_lion", "hill", "mountain"};
+            auto result = _::slice<vector_string>(a, -1, 0);
+
+            return join(result, ", ");
+    });
+    TEST(remove, []{
+            std::vector<int> v{ 1, 2, 3 };
+            _::remove(v, [](const auto& _) { return _ == 2; });
+
+            return join(v, ", ");
+    });
+    TEST(removeAndReturn, []{
+            std::vector<int> v{ 1, 2, 3 };
+            auto result = _::removeAndReturn _VECTOR(int) (v, [](const auto& _) { return _ == 2; });
+
+            return join(v, ", ") + ".  "s + join(result, ", ");
+    });
+    TEST(for_each(json_object), []{
+            vector_string result;
+            json m = {
+                    {"x", "a"},
+                    {"y", "b"},
+                    {"z", "c"}
+            };
+            std::for_each(m.begin(), m.end(), [&](const std::string& _) {
+                result.push_back(_);
+            });
+            return join(result, ", ");
+    });
+    TEST(for_each(json_array), []{
+            vector_string result;
+            json m = {"a", "b", "c"};
+            std::for_each(m["root"]["key"]["node"].begin(), m["root"]["key"]["node"].end(), [&](const std::string& _) {
+                result.push_back(_);
+            });
+
+            return join(result, ", ");
     });
 }

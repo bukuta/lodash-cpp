@@ -2,6 +2,7 @@
 #define UNDERSCORE_UNDERSCORE_H_
 #define UNDERSCORE_BONUS
 #define _VECTOR(...) <std::vector<__VA_ARGS__>>
+#define _IDENTITY_LAMBDA [](const auto& _) { return _; }
 
 #include <cstdlib>
 #include <algorithm>
@@ -10,6 +11,21 @@
 #include <map>
 #include <vector>
 #include <utility>
+//#include <functional.h>
+
+//using namespace sfinktah::functional;
+
+////  not used at present, but a really handy example of dealing with multiple argument passing and rvalue and perfect forwarding
+////  (from Scott Meyers, in his "Effective Modern C++")
+//template <typename Function, typename... Args>
+//inline auto reallyAsync(Function&& f, Args&&... params) {
+//    // Maybe we could use it with std::apply - see http://en.cppreference.com/w/cpp/utility/apply
+//    // and http://en.cppreference.com/w/cpp/utility/functional/invoke
+//    return std::async(std::launch::async, std::forward<Function>(f),
+//        std::forward<Args>(params)...);
+//}
+//
+
 
 namespace _
 {
@@ -57,6 +73,9 @@ namespace _
         // functions that are used across multiple types in the standard library.
         HAS_MEMBER_FUNCTION(push_back, HasPushBack);
         HAS_MEMBER_FUNCTION(insert, HasInsert);
+        HAS_MEMBER_FUNCTION(key, HasKey);
+        HAS_MEMBER_FUNCTION(is_object, HasIsObject);
+        HAS_MEMBER_FUNCTION(to_cbor, HasToCbor); // json iterator
 
         // Remove the macro so that it doesn't pollute the global scope.
 #undef HAS_MEMBER_FUNCTION
@@ -64,44 +83,84 @@ namespace _
         // To simplify function declarations later, the insertion capabilities for a
         // given type are simply listed in a struct.
         template <typename Container>
-        struct MemberAdditionCapabilities
+        struct ContainerMethods
         {
-            static bool const has_push_back = HasPushBack<Container,
-                void (Container::*)(const typename Container::value_type&)>::value;
-            static bool const has_insert = HasInsert<Container, std::pair<typename Container::iterator, bool>(Container::*)(
-                    const typename Container::value_type&)>::value;
+            static bool const has_push_back = 
+                HasPushBack<
+                    Container, 
+                    void (Container::*)
+                        (const typename Container::value_type&)
+                >::value;
+            static bool const has_insert = 
+                HasInsert<
+                    Container, 
+                    std::pair<typename Container::iterator, bool>(Container::*)
+                        (const typename Container::value_type&)
+                >::value;
+            static bool const has_is_object = 
+                HasIsObject<
+                    Container, 
+                    std::pair<typename Container::iterator, bool>(Container::*)
+                        (const typename Container::value_type&)
+                >::value;
+            static bool const has_to_cbor = 
+                HasToCbor<
+                    Container, 
+                    void (Container::*)
+                        (const typename Container::value_type&)
+                >::value;
+        };
+
+        //template <typename Iterator>
+        //struct IteratorMethods
+        //{
+        //    static bool const has_key = 
+        //        HasKey<
+        //            Iterator, 
+        //            void (Iterator::*)
+        //                (const typename Iterator::value_type&)
+        //        >::value;
+        //};
+
+        template <typename Container>
+        struct HasSupportedMethod
+        {
+            static bool const value = 0
+                || ContainerMethods<Container>::has_push_back 
+                || ContainerMethods<Container>::has_insert;
         };
 
         template <typename Container>
-        struct HasSupportedAdditionMethod
+        struct HasJsonTraits
         {
-            static bool const value = MemberAdditionCapabilities<Container>::has_push_back
-                || MemberAdditionCapabilities<Container>::has_insert;
+            static bool const value = 0
+                || ContainerMethods<Container>::has_is_object
+                || ContainerMethods<Container>::has_to_cbor;
         };
 
         // A simple implementation of enable_if allows alternative functions to be
         // selected at compile time.
         // This is from http://stackoverflow.com/a/264088/1256
+
         template <bool C, typename T = void>
-        struct enable_if
-        {
-            typedef T type;
-        };
+        struct enable_if { typedef T type; };
 
         template <typename T>
-        struct enable_if<false, T>
-        {
-        };
+        struct enable_if<false, T> {};
+
+        // This `enable_if_t` syntactic sugar is really not worth the one-time use
+        template<bool B, typename T = void>
+        using enable_if_t = typename std::enable_if<B, T>::type;
 
         template <typename Container>
-        typename enable_if<MemberAdditionCapabilities<Container>::has_insert, void>::type 
+        enable_if_t<ContainerMethods<Container>::has_insert, void>
 			insert(Container& container, typename Container::value_type const& value)
         {
             container.insert(value);
         }
 
         template <typename Container>
-        typename enable_if<MemberAdditionCapabilities<Container>::has_push_back, void>::type 
+        typename enable_if<ContainerMethods<Container>::has_push_back, void>::type 
 
 			push_back(Container& container, typename Container::value_type const& value)
         {
@@ -109,21 +168,21 @@ namespace _
         }
 
         template <typename Container>
-		typename enable_if<!MemberAdditionCapabilities<Container>::has_push_back, void>::type
+		typename enable_if<!ContainerMethods<Container>::has_push_back, void>::type
 			push_back(Container& container, typename Container::value_type const& value)
 		{
 			insert(container, value);
 		}
 
         template <typename Container>
-        typename enable_if<HasSupportedAdditionMethod<Container>::value, void>::type 
+        typename enable_if<HasSupportedMethod<Container>::value, void>::type 
 			add_to_container(Container& container, typename Container::value_type const& value)
         {
             push_back(container, value);
         }
 
         template <typename Container>
-        typename enable_if<HasSupportedAdditionMethod<Container>::value, void>::type 
+        typename enable_if<HasSupportedMethod<Container>::value, void>::type 
 			add_to_container(Container& container, typename Container::key_type const& key, typename Container::value_type const& value)
         {
             container.insert(container, value);
@@ -149,6 +208,41 @@ namespace _
                 value
             );
         }
+
+        // https://stackoverflow.com/questions/9044866/how-to-get-the-number-of-arguments-of-stdfunction/9044927#9044927
+        template<typename T>
+        struct count_arg;
+
+        template<typename R, typename ...Args>
+        struct count_arg<std::function<R(Args...)>>
+        {
+            static const size_t value = sizeof...(Args);
+        };    
+
+//#include <type_traits>
+//#include <utility>
+//#include <map>
+
+        // https://stackoverflow.com/questions/43992510/enable-if-to-check-if-value-type-of-iterator-is-a-pair/43993493#43993493
+        template <typename>
+        struct is_pair : std::false_type
+        { };
+
+        template <typename T, typename U>
+        struct is_pair<std::pair<T, U>> : std::true_type
+        { };
+
+
+        //int main()
+        //{
+        //    std::map<int, int> foo{
+        //        { 1, 2 },
+        //        { 3, 4 },
+        //    };
+
+        //    do_stuff(foo.begin());
+        //    return 0;
+        //}
     } // namespace helper
 
       // Collections
@@ -193,6 +287,24 @@ namespace _
         }
     }
 
+    //template <class T, class = void>
+    //struct is_iterator : std::false_type { };
+
+    //template <class T>
+    //struct is_iterator<T, std::void_t<
+    //    typename std::iterator_traits<T>::iterator_category
+    //    >> : std::true_type { };
+
+    //template <typename T, typename Function>
+    //typename std::enable_if<is_iterator<T>::value, void>::type each_key_value(T iterator, Function function)
+    //{
+    //    for (; iterator != container.end(); ++i) {
+    //        auto key = i->first;
+    //        auto value = i->second;
+    //        function(value, key, container);
+    //    }
+    //}
+
     //  The full power of `each`.  Each invocation of iteratee is called 
     //  with three arguments: (element, index, list). If list is an object, 
     //  iteratee's arguments will be (value, key, list).  (MDN)
@@ -206,9 +318,19 @@ namespace _
         }
     }
 
-    //  each - for nlohmann::json containers. iteratee has two arguments: (value, key). 
+    template <typename Iterator, typename Function>
+    void each_key_value(Iterator i, Iterator end, Function function) 
+    {
+        for (; i != end; ++i) {
+            auto key = i->first;
+            auto value = i->second;
+            function(value, key);
+        }
+    }
+
+    //  each - for nlohmann::json associative containers. iteratee has three arguments: (value, key, container). 
     template <typename Container, typename Function>
-    void each_json(Container container, Function function)
+    void each_json(Container& container, Function& function)
     {
         for (auto i = container.begin(); i != container.end(); ++i) {
             auto key = i.key();
@@ -216,6 +338,23 @@ namespace _
             function(value, key);
         }
     }
+
+    //template <typename Container, typename... Args>
+    //void each_json_magic(Container& container, std::function<void(Args...)> function)
+    //{
+    //    auto iteratee = [](auto value, auto key, auto& container) {};
+    //    switch (helper::count_arg<function>::value) {
+    //        case 3: iteratee = [&] { function(value, key, container); }; break;
+    //        case 2: iteratee = [&] { function(value, key); }; break;
+    //        case 1: iteratee = [&] { function(value); }; break;
+    //    }
+
+    //    for (auto i = container.begin(); i != container.end(); ++i) {
+    //        auto key = i.key();
+    //        auto value = i.value();
+    //        iteratee(value, key, container);
+    //    }
+    //}
 
     template <typename Container, typename Function>
     void for_each(Container container, Function function)
@@ -283,6 +422,7 @@ namespace _
             else
                 ++i;
         }
+        return result;
     }
 
     // pull (lodash) - Removes all given values from array using SameValueZero for equality comparisons.
@@ -354,7 +494,7 @@ namespace _
         ResultContainer result;
         // zorg c++11 optimisation
         for (const auto& item : container) helper::add_to_container(result, item);
-        // previously: (and still required for associate containers, e.g. map
+        // previously: (and still required for associative containers, e.g. map
 
         // for (auto i = container.begin(); i != container.end(); ++i)
         // {
@@ -363,8 +503,21 @@ namespace _
         return result;
     }
 
+    //template <class T, class Enable = void>
+    //class value_type_from
+    //{
+    //    typedef T type;
+    //};
+
+    //template <class T>
+    //class value_type_from<T, typename enable_if_has_type<typename T::value_type>::type>
+    //{
+    //    typedef typename T::value_type type;
+    //};
+    //typename Container::iterator 
+
     template <typename ResultContainer, typename Container>
-    ResultContainer values2(Container container)
+    ResultContainer valuesObject(Container container)
     {
         ResultContainer result;
         for (auto i = container.begin(); i != container.end(); ++i)
@@ -385,6 +538,44 @@ namespace _
             auto k = i->first;
             helper::add_to_container(result, k);
         }
+        //for (std::pair<std::string, std::string> i : container) {
+        //    helper::add_to_container(result, i.first);
+        //}
+        return result;
+
+    }
+
+    template <typename ResultContainer, typename Container>
+    ResultContainer pairs(Container container)
+    {
+        ResultContainer result;
+        for (std::pair<std::string, std::string> i : container) {
+            helper::add_to_container(result, i.second);
+        }
+        return result;
+    }
+
+  //  template <typename ResultContainer, typename Container, typename Function>
+  //  typename helper::enable_if<!helper::is_void<ResultContainer>::value, ResultContainer>::type 
+		//invoke(Container container, Function function)
+  //  {
+
+    // sfink - keys_json
+    // template <typename ResultContainer, typename Container, typename Iterator Container::const_iterator>
+    template <typename ResultContainer, typename Container>
+    typename helper::enable_if<helper::HasJsonTraits<Container>::value, ResultContainer>::type
+    keys_json(Container container)
+    {
+        //json j;
+        //j.
+        ResultContainer result;
+        for (auto i = container.begin(); i != container.end(); ++i) {
+            helper::add_to_container(result, i.key());
+        }
+        for (std::pair<std::string, std::string> i : container) {
+            helper::add_to_container(result, i.first);
+        }
+
         return result;
     }
 
@@ -400,6 +591,47 @@ namespace _
         //    helper::add_to_container(result, k);
         //}
         //return result;
+    }
+
+    //template<class Iterator, typename = typename std::enable_if<is_pair<typename Iterator::value_type>::value, Iterator>::type>
+    //decltype(auto) do_stuff(Iterator&& iterator) {
+
+    //    //access of iterator->second ok.
+    //}
+
+    template <typename T>
+    class HasJsonPointer
+    {
+    private:
+        typedef char yes[1];
+        typedef char no[2];
+        template <typename C>
+        static yes& test(typename C::json_pointer*);
+        template <typename C>
+        static no& test(...);
+
+    public:
+        static bool const value = sizeof(test<T>(0)) == sizeof(yes);
+    };
+
+    template <typename ResultContainer, typename Container>
+    typename helper::enable_if<!HasJsonPointer<typename Container::value_type>::value, void>::type
+        keys_internal(ResultContainer& result, Container const& container)
+    {
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            helper::add_to_container(result, *i);
+        }
+    }
+
+    template <typename ResultContainer, typename Container>
+    typename helper::enable_if<HasJsonPointer<typename Container::value_type>::value, void>::type
+        keys_internal(ResultContainer& result, Container const& container)
+    {
+        for (auto i = container.begin(); i != container.end(); ++i)
+        {
+            helper::add_to_container(result, *i);
+        }
     }
 
     // MDN - The slice() method returns a shallow copy of a portion of an array into a 
@@ -422,10 +654,10 @@ namespace _
 
         const size_t len = container.size();
         if (end < 1)
-            end = len - end;
+            end = len + end;
 
         if (begin < 0)
-            begin = len - begin - 1;
+            begin = len + begin + 1;
 
         begin = helper::clamp<long long>(begin, 0, len - 1);
         end   = helper::clamp<long long>(end, 0, len);
@@ -710,6 +942,51 @@ namespace _
         return result;
     }
 
+    /**
+    * The base implementation of `_.sum` and `_.sumBy` without support for
+    * iteratee shorthands.
+    *
+    * @private
+    * @param {Array} array The array to iterate over.
+    * @param {Function} iteratee The function invoked per iteration.
+    * @returns {number} Returns the sum.
+    */
+    template <typename Container, typename Function>
+    typename Container::value_type baseSum(Container array, Function iteratee) {
+        typename Container::value_type result = {};
+        for (const auto& i : array) {
+            auto current = iteratee(i);
+            result += current;
+        }
+        return result;
+    }
+
+    template<typename T>
+	constexpr auto identity(const T& _) {
+		return _;
+	}
+
+    /**
+    * Computes the sum of the values in `array`.
+    *
+    * @static
+    * @memberOf _
+    * @since 3.4.0
+    * @category Math
+    * @param {Array} array The array to iterate over.
+    * @returns {number} Returns the sum.
+    * @example
+    *
+    * _.sum([4, 2, 8, 6]);
+    * // => 20
+    */
+    template <typename Container>
+    typename Container::value_type sum(Container container)
+    {
+        //return container.size() ? baseSum<Container>(container, identity) : 0;
+        return container.size() ? baseSum<Container>(container, _IDENTITY_LAMBDA) : 0;
+    }
+
     // max
     template <typename Container>
     typename Container::iterator max(Container container)
@@ -853,7 +1130,7 @@ namespace _
 			// right is longer, ergo left is less
 			(right != container2.end()) ? -1 :
 			// left is longer, ergo right is less
-			(left  != container2.end()) ? +1 :
+			(left  != container1.end()) ? +1 :
 			// both of equal length, ergo equal
 			0;
     }
@@ -1091,6 +1368,29 @@ namespace _
         return result;
     }
 
+    /// <summary>Append the contents of <paramref="source" /> to <paramref="destination" /></summary>
+    /// <param name="destination">The destination array</param>
+    /// <param name="source">The source array</param>
+    /// <returns>void</returns>
+	template <typename Container1, typename Container2>
+    void concat_inplace(Container1& destination, Container2 const& source)
+    {
+        // This may be a terrible idea, if reserve or size is not defined.
+		// result.reserve(container1.size() + source.size());
+		//each(container1, [&result](auto value) { helper::add_to_container(result, value);  });
+		each(source, [&destination](const auto& value) { helper::add_to_container(destination, value);  });
+
+		//vector1.insert(vector1.end(), vector2.begin(), vector2.end());
+        //for (auto i = container.begin(); i != container.end(); ++i)
+        //{
+        //    if (static_cast<bool>(*i))
+        //    {
+        //        helper::add_to_container(result, *i);
+        //    }
+        //}
+        //return result;
+    }
+
     // compact
     template <typename ResultContainer, typename Container>
     ResultContainer compact(Container const& container)
@@ -1237,7 +1537,7 @@ namespace _
         std::vector<typename Container::value_type> memo;
         for (auto i = container.begin(); i != container.end(); ++i)
         {
-            if (is_sorted ? !memo.size() || *last(memo) != *i : !include(memo, *i))
+            if (is_sorted ? !memo.size() || *last(memo) != *i : !includes(memo, *i))
             {
                 memo.push_back(*i);
                 helper::add_to_container(result, *i);
@@ -1479,10 +1779,6 @@ namespace _
         return *_;
     }
 
-    template<typename T>
-	auto identity(const T& _) {
-		return _;
-	}
 
 	/// <summary>Invokes the iteratee n times, returning an array of the results of each invocation. The iteratee is invoked with one argument; (index).</summary>
 	/// <param name="n">The number of times to invoke <paramref="iteratee" /></param>
@@ -1524,6 +1820,19 @@ namespace _
             helper::add_to_container(container, key, value);
         return at(container, key);
     }
+
+    template <typename Container>
+	bool tryAndPop(Container& the_queue, typename Container::value_type& popped_value)
+	{
+		if (the_queue.empty())
+		{
+			return false;
+		}
+
+		popped_value = the_queue.front();
+		the_queue.pop_front();
+		return true;
+	}
 
 	/// <summary>Perumtate the specified containers.</summary>
 	/// <param name="container1">container 1.</param>
@@ -1661,4 +1970,34 @@ namespace _
 
   // namespace _ = _;
 
+
+//template <typename Key, typename Iterator>
+//struct KeyIterator
+//{
+//    KeyIterator(
+//        Iterator i)
+//        :_i(i)
+//    {
+//    }
+//
+//    KeyIterator operator++()
+//    {
+//        ++_i;
+//        return *this;
+//    }
+//
+//    bool operator==(
+//        KeyIterator ki)
+//    {
+//        return _i = ki._i;
+//    }
+//
+//    typename Iterator::value_type operator*()
+//    {
+//        return _i->first;
+//    }
+//};
+
+
+// see also: https://stackoverflow.com/questions/43992510/enable-if-to-check-if-value-type-of-iterator-is-a-pair
 #endif // UNDERSCORE_UNDERSCORE_H_
