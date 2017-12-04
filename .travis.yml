@@ -1,0 +1,26 @@
+#########################
+# project configuration #
+#########################
+
+# C++ project
+language: cpp
+
+
+################
+# build script #
+################
+
+script:
+  # make sure CXX is correctly set
+  - if [[ "${COMPILER}" != "" ]]; then export CXX=${COMPILER}; fi
+
+  # show OS/compiler version
+  - uname -a
+  - $CXX --version
+
+  # compile and execute unit tests
+  - cd test
+  - make json_unit
+  - ./json_unit
+  - cd ..
+

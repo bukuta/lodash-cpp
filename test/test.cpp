@@ -36,8 +36,8 @@
 #include <vector>
 #include <algorithm>
 
-#include "lodash.hpp"
-#include "test/json.hpp"
+#include "../lodash.hpp"
+#include "json.hpp"
 
 using namespace std::string_literals; 
 using vector_string = std::vector<std::string>;
