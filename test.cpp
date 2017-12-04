@@ -122,7 +122,7 @@ int main(int argc, const char** argv) {
                 {"b", "2"},
                 {"c", "3"}
             };
-            vector_string result;
+            std::vector<std::string> result;
             _::each_key_value(m.begin(), m.end(), [&](const std::string& _, const std::string& __) {
                 result.push_back(_ + ':' + __);
             });
@@ -352,4 +352,5 @@ int main(int argc, const char** argv) {
 
             return join(result, ", ");
     });
+    printf("test suite complete\n");
 }
