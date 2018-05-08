@@ -533,6 +533,7 @@ enum class value_t : uint8_t
 Returns an ordering that is similar to Python:
 - order: null < boolean < number < object < array < string
 - furthermore, each type is not smaller than itself
+- discarded values are not comparable
 
 @since version 1.0.0
 */
@@ -550,9 +551,9 @@ inline bool operator<(const value_t lhs, const value_t rhs) noexcept
         }
     };
 
-    // discarded values are not comparable
-    return lhs != value_t::discarded and rhs != value_t::discarded and
-           order[static_cast<std::size_t>(lhs)] < order[static_cast<std::size_t>(rhs)];
+    const auto l_index = static_cast<std::size_t>(lhs);
+    const auto r_index = static_cast<std::size_t>(rhs);
+    return (l_index < order.size() and r_index < order.size() and order[l_index] < order[r_index]);
 }
 
 
@@ -1741,7 +1742,7 @@ class lexer
     {
         const auto loc = localeconv();
         assert(loc != nullptr);
-        return (loc->decimal_point == nullptr) ? '.' : loc->decimal_point[0];
+        return (loc->decimal_point == nullptr) ? '.' : *(loc->decimal_point);
     }
 
     /////////////////////
@@ -1908,8 +1909,8 @@ class lexer
                         // unicode escapes
                         case 'u':
                         {
-                            int codepoint;
                             const int codepoint1 = get_codepoint();
+                            int codepoint = codepoint1; // start with codepoint1
 
                             if (JSON_UNLIKELY(codepoint1 == -1))
                             {
@@ -1934,6 +1935,7 @@ class lexer
                                     // check if codepoint2 is a low surrogate
                                     if (JSON_LIKELY(0xDC00 <= codepoint2 and codepoint2 <= 0xDFFF))
                                     {
+                                        // overwrite codepoint
                                         codepoint =
                                             // high surrogate occupies the most significant 22 bits
                                             (codepoint1 << 10)
@@ -1963,9 +1965,6 @@ class lexer
                                     error_message = "invalid string: surrogate U+DC00..U+DFFF must follow U+D800..U+DBFF";
                                     return token_type::parse_error;
                                 }
-
-                                // only work with first code point
-                                codepoint = codepoint1;
                             }
 
                             // result of the above calculation yields a proper codepoint
@@ -6090,8 +6089,8 @@ class serializer
     */
     serializer(output_adapter_t<char> s, const char ichar)
         : o(std::move(s)), loc(std::localeconv()),
-          thousands_sep(loc->thousands_sep == nullptr ? '\0' : loc->thousands_sep[0]),
-          decimal_point(loc->decimal_point == nullptr ? '\0' : loc->decimal_point[0]),
+          thousands_sep(loc->thousands_sep == nullptr ? '\0' : * (loc->thousands_sep)),
+          decimal_point(loc->decimal_point == nullptr ? '\0' : * (loc->decimal_point)),
           indent_char(ichar), indent_string(512, indent_char) {}
 
     // delete because of pointer members
@@ -6575,7 +6574,7 @@ class serializer
                         // check that the additional bytes are present
                         assert(i + bytes < s.size());
 
-                        // to useÂ \uxxxx escaping, we first need to caluclate
+                        // to use \uxxxx escaping, we first need to caluclate
                         // the codepoint from the UTF-8 bytes
                         int codepoint = 0;
 
@@ -8046,11 +8045,13 @@ class basic_json
 
                 case value_t::null:
                 {
+                    object = nullptr;  // silence warning, see #821
                     break;
                 }
 
                 default:
                 {
+                    object = nullptr;  // silence warning, see #821
                     if (JSON_UNLIKELY(t == value_t::null))
                     {
                         JSON_THROW(other_error::create(500, "961c151d2e87f2686a955a9be24d316f1362bf21 2.1.1")); // LCOV_EXCL_LINE
@@ -13655,6 +13656,59 @@ class basic_json
     const_reference at(const json_pointer& ptr) const
     {
         return ptr.get_checked(this);
+    }
+
+    /*!
+    @brief execute a provided function once for each item in a container
+
+    Iterates over a list of elements, yielding each in turn to an iteratee function. The iteratee is bound to the context object, if one is passed. Each invocation of iteratee is called with three arguments: (element, index, list). If list is a JavaScript object, iteratee's arguments will be (value, key, list). Returns the list for chaining.
+
+    @param iteratee  Callable object accepting 3 arguments
+    @param iteratee.value The value of the current item
+    @param iteratee.key The key/index of the current item
+    @param iteratee.object The JSON container being iterated
+
+    @throw type_error.302 if not is_object() or not is_array()
+
+    @complexity Linear in the size the JSON container.
+
+    @example j["list"].each([](auto key, auto value, auto& object){ object[key] = std::to_string(value); });
+
+    @since never
+    */
+    template <typename Function>
+    void each(Function function)
+    {
+        basic_json& value = *this;
+        switch (value.m_type)
+        {
+            case detail::value_t::array:
+            {
+                // iterate array and use index as reference string
+                for (std::size_t i = 0; i < value.m_value.array->size(); ++i)
+                {
+                    function(value.m_value.array->operator[](i), i, value);
+                }
+            }
+            break;
+
+            case detail::value_t::object:
+            {
+                // iterate object and use keys as reference string
+                for (const auto& element : *value.m_value.object)
+                {
+                    function(element.second, element.first, value);
+                }
+                break;
+            }
+
+            default:
+            {
+                // maybe throw an error
+                JSON_THROW(type_error::create(302, "type must be array or object, but is " + std::string(value.type_name())));
+                break;
+            }
+        }
     }
 
     /*!

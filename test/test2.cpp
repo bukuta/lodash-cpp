@@ -36,12 +36,10 @@
 #include <vector>
 #include <algorithm>
 
-#include "../lodash.hpp"
-#include "json.hpp"
+#include "../lodash2.hpp"
 
 using namespace std::string_literals; 
 using vector_string = std::vector<std::string>;
-using json = nlohmann::json;
 
 
 #define TEST(NAME, ...) \
@@ -77,14 +75,14 @@ int main(int argc, const char** argv) {
             };
             return join(_::tuple_keys<vector_string>(m), ", ");
     });
-    TEST(tuple_keys<json>, [&]{
-            json m = {
-                    {"a", "x"},
-                    {"b", "y"},
-                    {"c", "z"}
-            };
-            return join(_::tuple_keys<vector_string>(m), ", ");
-    });
+    // TEST(tuple_keys<json>, [&]{
+            // json m = {
+                    // {"a", "x"},
+                    // {"b", "y"},
+                    // {"c", "z"}
+            // };
+            // return join(_::tuple_keys<vector_string>(m), ", ");
+    // });
     // TEST(keys2, [&]{
             // std::map<std::string, std::string> m = {
                 // {"a", "1"},
@@ -166,18 +164,59 @@ int main(int argc, const char** argv) {
             // auto result = _::valuesObject<vector_string>(m);
             // return join(result, ", ");
     // });
-    // TEST(values<std::set>, [&]{
-            // std::set<std::string> m = 
-                // {"a", "b", "c"}
-            // ;
+    // TEST(values<std::map>, [&]{
+            // std::map<int, std::string> m = {
+                // {1, "a" },
+                // {2, "b" },
+                // {3, "c" }
+            // };
             // auto result = _::values<vector_string>(m);
             // return join(result, ", ");
     // });
-    // TEST(values<std::vector>, [&]{
+    TEST(values<std::set>, [&]{
+            std::set<std::string> m = 
+                {"a", "b", "c"}
+            ;
+            auto result = _::values<vector_string>(m);
+            return join(result, ", ");
+    });
+    TEST(values<std::vector>, [&]{
+            vector_string m = 
+                {"a", "b", "c"}
+            ;
+            auto result = _::values<vector_string>(m);
+            return join(result, ", ");
+    });
+    TEST(tuple_values<std::map>, [&]{
+            std::map<int, std::string> m = {
+                {1, "a" },
+                {2, "b" },
+                {3, "c" }
+            };
+            auto result = _::tuple_values<vector_string>(m);
+            return join(result, ", ");
+    });
+    // TEST(tuple_values<std::set>, [&]{
+            // std::set<std::string> m = 
+                // {"a", "b", "c"}
+            // ;
+            // auto result = _::tuple_values<vector_string>(m);
+            // return join(result, ", ");
+    // });
+    // TEST(tuple_values<std::vector>, [&]{
             // vector_string m = 
                 // {"a", "b", "c"}
             // ;
-            // auto result = _::values<vector_string>(m);
+            // auto result = _::tuple_values<vector_string>(m);
+            // return join(result, ", ");
+    // });
+    // TEST(tuple_values<json_object>, [&]{
+            // json m = {
+                    // {"x", "a"},
+                    // {"y", "b"},
+                    // {"z", "c"}
+            // };
+            // auto result = _::tuple_values<vector_string>(m);
             // return join(result, ", ");
     // });
     // TEST(values<json_object>, [&]{
@@ -235,11 +274,21 @@ int main(int argc, const char** argv) {
             // auto result = _::concat<vector_string>(a, b);
             // return join(result, ", ");
     // });
-    // TEST(reduce<std::vector>, [&]{
-            // vector_string a = {"a", "b", "c"};
-            // a = _::reduce(a, [](auto& accum, const auto& curr) { return _::concat<vector_string>(accum, vector_string{ curr + "2" });  }, a);
-            // return join(a, ", ");
-    // });
+    TEST(reduce<std::vector>, [&]{
+            vector_string a = {"a", "b", "c"};
+            a = _::reduce(a, [](const auto& accum, const auto& curr) { return _::concat<vector_string>(accum, vector_string{ curr + "2" });  }, vector_string{} );
+            return join(a, ", ");
+    });
+    TEST(find<default function>, [&]{
+            vector_string m = {"a", "b", "c"};
+            std::string a = _::find(m, "a", [] { return "z"; });
+            return a;
+    });
+    TEST(find<default value>, [&]{
+            vector_string m = {"a", "b", "c"};
+            std::string a = _::find(m, "a", "z");
+            return a;
+    });
     // TEST(uniqBy<std::vector>(_::identity), [&]{
             // vector_string a = {"a", "b", "b", "c"};
             // vector_string result = _::uniqBy<vector_string, std::string>(a, [](const auto& _) { return _; });
