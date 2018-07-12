@@ -1,4 +1,4 @@
-#ifndef UNDERSCORE_UNDERSCORE_H_
+﻿#ifndef UNDERSCORE_UNDERSCORE_H_
 #define UNDERSCORE_UNDERSCORE_H_
 #define UNDERSCORE_BONUS
 #define _VECTOR(...) <std::vector<__VA_ARGS__>>
@@ -15,6 +15,7 @@
 #include <random>
 #include <sstream>
 #include <stdexcept>
+#include <type_traits>
 
 // SO answers by: https://stackoverflow.com/users/1120273/dietmar-k%C3%BChl (someone not to argue with on stackoverflow)
 // https://stackoverflow.com/questions/12662891/passing-a-member-function-as-an-argument-in-c/12662961#12662961
@@ -111,11 +112,22 @@ namespace _ {
             container.insert(value);
         }
 
-        template <typename T>
-        constexpr T clamp(T value, T min, T max)
+        template <typename Container>
+        void add_to_container(
+            Container& container, const typename Container::value_type& value, const typename Container::iterator position)
         {
-            return (value > max ? max : value < min ? min : value);
+            container.insert(position, value);
         }
+
+
+        template<typename T>
+        constexpr const T& clamp(const T& val, const T& lo, const T& hi)
+        {
+            return 
+                (val < lo) ? lo : 
+                (val > hi) ? hi : val;
+        }
+
 
         // https://stackoverflow.com/questions/9044866/how-to-get-the-number-of-arguments-of-stdfunction/9044927#9044927
         template <typename T>
@@ -221,38 +233,38 @@ namespace _ {
         }
     }
 
-    //  each - for nlohmann::json associative containers. iteratee has three arguments: (value, key, container).
+    //  each - for nlohmann::json associative containers. iteratee has three arguments: (value, key).
     template <typename Container, typename Function>
     void each_json(const Container& container, Function&& function)
     {
         for (auto i = container.begin(); i != container.end(); ++i) {
-            auto key   = i.key();
-            auto value = i.value();
-            function(value, key);
+            //auto key   = i.key();
+            //auto value = i.value();
+            function(i.value(), i.key());
         }
     }
 
-    template <typename Container, typename Function>
-    typename std::enable_if<traits::has_is_object<Container>::value, void>::type 
-    json_each(Container& container, Function&& iteratee)
-    {
-        auto& value = container;
-        if (value.is_object()) {
-            for (auto i = std::begin(container); i != std::end(container); i++) {
-                iteratee(i.value(), i.key());
-            }
-        }
-        // technically if it's just an array, the user could/should have called `each_with_distance`
-        //else if (value.is_array()) {
-        //    each_with_distance(container, iteratee);
-        //        //for (std::size_t i = 0, len = value.size(); i < siz; i++) {
-        //        //    iteratee(value.m_value.array->operator[](i), json(i));
-        //        //}
-        //}
-        else {
-            throw std::runtime_error("json type must be ~array~ or object");
-        }
-    }
+    //template <typename Container, typename Function>
+    //typename std::enable_if<traits::has_is_object<Container>::value, void>::type 
+    //json_each(Container& container, Function&& iteratee)
+    //{
+    //    auto& value = container;
+    //    if (value.is_object()) {
+    //        for (auto i = std::begin(container); i != std::end(container); i++) {
+    //            iteratee(i.value(), i.key());
+    //        }
+    //    }
+    //    // technically if it's just an array, the user could/should have called `each_with_distance`
+    //    //else if (value.is_array()) {
+    //    //    each_with_distance(container, iteratee);
+    //    //        //for (std::size_t i = 0, len = value.size(); i < siz; i++) {
+    //    //        //    iteratee(value.m_value.array->operator[](i), json(i));
+    //    //        //}
+    //    //}
+    //    else {
+    //        throw std::runtime_error("json type must be ~array~ or object");
+    //    }
+    //}
 
     // template <typename Container, typename... Args>
     // void each_json_magic(Container& container, std::function<void(Args...)> function)
@@ -387,21 +399,19 @@ namespace _ {
         return map<ResultContainer>(container, std::forward<Function>(function));
     }
 
-    //template <typename Container>
-    //typename Container::value_type sample(const Container& container)
-    //{
-    //}
-    // sfink - values
     template <typename ResultContainer, typename Container>
-    ResultContainer values(const Container& container)
+    ResultContainer tuple_keys(const Container& container)
     {
-        if constexpr(traits::has_mapped_type<Container>::value) { 
-            return objectValues<ResultContainer>(container); 
-        }
-        else {
-            return arrayValues<ResultContainer>(container);
-        }
+        return get_item<ResultContainer, 0>(container);
     }
+
+    template <typename ResultContainer, typename Container>
+    ResultContainer tuple_values(const Container& container)
+    {
+        return get_item<ResultContainer, 1>(container);
+    }
+
+
     template <typename ResultContainer, typename Container>
     ResultContainer arrayValues(const Container& container)
     {
@@ -422,6 +432,23 @@ namespace _ {
         // ResultContainer result;
         // for (const auto& item : container) helper::add_to_container(result, item);
         // return result;
+    }
+
+
+    //template <typename Container>
+    //typename Container::value_type sample(const Container& container)
+    //{
+    //}
+    // sfink - values
+    template <typename ResultContainer, typename Container>
+    ResultContainer values(const Container& container)
+    {
+        if constexpr(traits::has_mapped_type<Container>::value) { 
+            return objectValues<ResultContainer>(container); 
+        }
+        else {
+            return arrayValues<ResultContainer>(container);
+        }
     }
     // sfink - needed to process json objects, and any other crap that doesn't fully comply to STL
     template <typename ResultContainer, typename Container>
@@ -449,18 +476,6 @@ namespace _ {
     ResultContainer get_item(const Container& container)
     {
         return map<ResultContainer>(container, [](auto& value) { return std::get<I>(value); });
-    }
-
-    template <typename ResultContainer, typename Container>
-    ResultContainer tuple_keys(const Container& container)
-    {
-        return get_item<ResultContainer, 0>(container);
-    }
-
-    template <typename ResultContainer, typename Container>
-    ResultContainer tuple_values(const Container& container)
-    {
-        return get_item<ResultContainer, 1>(container);
     }
 
     // template <typename ResultContainer, typename Container>
@@ -492,7 +507,7 @@ namespace _ {
     // new array object selected from begin to end (end not included).
     // The original array will not be modified.
     template <typename ResultContainer, typename Container>
-    ResultContainer slice(const Container& container, long long begin = 0, long long end = 0)
+    ResultContainer slice(const Container& container, long long begin = 0, long long end = MAXINT)
     {
         // begin Optional
         //    Zero - based index at which to begin extraction.
@@ -508,21 +523,145 @@ namespace _ {
         //    If end is omitted, slice extracts through the end of the sequence(arr.length).
         //    If end is greater than the length of the sequence, slice extracts through the end of the sequence(arr.length).
 
-        const size_t len = container.size();
-        if (end < 1) end = len + end;
+        ResultContainer result;
 
-        if (begin < 0) begin = len + begin + 1;
+        const size_t len = container.size();
+        if (len == 0)
+            return result;
+
+        if (begin >= 0 && static_cast<size_t>(begin) > (len - 1))
+            return result;
+
+        //LOG_DEBUG(__FUNCTION__ ":1. len: %lli, begin: %lli, end: %lli", len, begin, end);
+        if (end < 1) end = len + end;
+        if (begin < 0) begin = len + begin;
 
         begin = helper::clamp<long long>(begin, 0, len - 1);
-        end   = helper::clamp<long long>(end, 0, len);
+        end   = helper::clamp<long long>(end, begin, len);
+        auto count = end - begin;
+        //LOG_DEBUG(__FUNCTION__ ":2. len: %lli, begin: %lli, end: %lli, count: %lli", len, begin, end, count);
+        // paranoia?
+        count = helper::clamp<long long>(count, 0, len - begin);
+        //LOG_DEBUG(__FUNCTION__ ":3. len: %lli, begin: %lli, end: %lli, count: %lli", len, begin, end, count);
 
-        ResultContainer result;
-        long long       _index = 0;
-        for (auto i = container.begin(); i != container.end(); ++i) {
-            auto index = _index++;
-            if (index >= end) break;
-            if (index >= begin) helper::add_to_container(result, *i);
+
+        if (count > 0)
+        for (auto it = std::next(std::begin(container), begin); count; count--, it++) {
+            helper::add_to_container(result, *it);
         }
+
+
+        //long long       _index = 0;
+        //for (auto i = container.begin(); i != container.end(); ++i) {
+        //    auto index = _index++;
+        //    if (index >= end) break;
+        //    if (index >= begin) helper::add_to_container(result, *i);
+        //}
+        return result;
+    }
+
+    /// <summary>Mutates the contents of an array by removing existing elements and/or adding new elements</summary>
+    /// <param name="container">The container.</param>
+    /// <param name="start">Index at which to start changing the array (with origin 0). If greater than the length of the array, actual starting index will be set to the length of the array. If negative, will begin that many elements from the end of the array (with origin -1) and will be set to 0 if absolute value is greater than the length of the array.</param>
+    /// <param name="deleteCount">The number of old array elements to remove. 
+    /// If deleteCount is omitted, or if its value is larger than array.length - start (that is, if it is greater than the number of elements left in the array, starting at start), then all of the elements from start through the end of the array will be deleted.
+    /// If deleteCount is 0 or negative, no elements are removed.In this case, you should specify at least one new element(see below).</param>
+    /// <param name="items">The elements to add to the array, beginning at the start index. If you don't specify any elements, splice() will only remove elements from the array.</param>
+    /// <returns>An array containing the deleted elements. If only one element is removed, an array of one element is returned. If no elements are removed, an empty array is returned.</returns>
+    /// <example><code>
+    /// // see: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/splice
+    /// </code></example>
+    template <typename Container>
+    Container splice(Container& container, long long start, long long deleteCount = MAXINT, const Container items = {})
+    {
+        // begin Optional
+        //    Zero - based index at which to begin extraction.
+        //    A negative index can be used, indicating an offset from the end of the sequence.slice(-2) extracts the last two
+        //    elements in the sequence.
+        //    If begin is undefined, slice begins from index 0.
+
+        // end Optional
+        //    Zero - based index before which to end extraction.slice extracts up to but not including end.
+        //    For example, slice(1, 4) extracts the second element through the fourth element(elements indexed 1, 2, and 3).
+        //    A negative index can be used, indicating an offset from the end of the sequence.slice(2, -1) extracts the third
+        //    element through the second - to - last element in the sequence.
+        //    If end is omitted, slice extracts through the end of the sequence(arr.length).
+        //    If end is greater than the length of the sequence, slice extracts through the end of the sequence(arr.length).
+
+        /*
+        start
+            Index at which to start changing the array (with origin 0). 
+            If greater than the length of the array, actual starting index will be set to the length of the array. 
+            If negative, will begin that many elements from the end of the array (with origin -1) and will be set to 0 if absolute value is greater than the length of the array.
+
+        deleteCount Optional
+            An integer indicating the number of old array elements to remove.
+            If deleteCount is omitted, or if its value is larger than `array.length - start` 
+                (that is, if it is greater than the number of elements left in the array, starting at start), 
+                then all of the elements from start through the end of the array will be deleted.
+            If deleteCount is 0 or negative, no elements are removed. In this case, you should specify at least one new element (see below).
+        */
+
+        Container result;
+
+        const size_t len = container.size();
+
+        if (deleteCount < 1) deleteCount = 0;
+        if (start < 0) start = len + start;
+
+        start = helper::clamp<size_t>(start, 0, len);
+        size_t end = start + deleteCount;
+        end   = helper::clamp<size_t>(end, start, len);
+        deleteCount = end - start;
+
+        if (deleteCount > 0)
+        for (auto it = std::next(std::begin(container), start); deleteCount; deleteCount--) {
+            helper::add_to_container(result, *it), it = container.erase(it);
+        }
+        auto pos = std::next(std::begin(container), start);
+        container.insert(pos, std::begin(items), std::end(items));
+        //each(items, [&container, &pos](const auto& item) {
+        //    helper::add_to_container(container, item, pos)
+        //});
+        //result = slice<Container>(container, start, end);
+        //size_t       _index = 0;
+        //for (auto i = container.begin(); i != container.end(); /* ++i */) {
+        //    auto index = _index++;
+        //    if (index >= end) break;
+        //    if (index >= start) helper::add_to_container(result, *i);
+        //}
+        return result;
+    }
+
+    template <typename Container, typename Value>
+    Container spliceItem(Container& container, long long start, long long deleteCount, const Value& item)
+    {
+        const size_t len = container.size();
+        if (deleteCount < 1) deleteCount = 0;
+        if (start < 0) start = len + start;
+
+        start = helper::clamp<size_t>(start, 0, len);
+        size_t end = start + deleteCount;
+        end   = helper::clamp<size_t>(end, start, len);
+        deleteCount = end - start;
+
+        Container result;
+        if (deleteCount > 0)
+        for (auto it = std::next(std::begin(container), start); deleteCount; deleteCount--) {
+            helper::add_to_container(result, *it), it = container.erase(it);
+        }
+        auto pos = std::next(std::begin(container), start);
+        container.emplace(pos, item);
+        //each(items, [&container, &pos](const auto& item) {
+        //    helper::add_to_container(container, item, pos)
+        //});
+        //result = slice<Container>(container, start, end);
+        //size_t       _index = 0;
+        //for (auto i = container.begin(); i != container.end(); /* ++i */) {
+        //    auto index = _index++;
+        //    if (index >= end) break;
+        //    if (index >= start) helper::add_to_container(result, *i);
+        //}
         return result;
     }
 
@@ -534,10 +673,10 @@ namespace _ {
     /// <returns>The value that results from the reduction.</returns>
     /// <example><code>
     /// std::vector<int> v{ 1, 2, 3 };
-    /// count << _::reduceArray(v, [](auto accumulator, auto currentValue, auto currentIndex, auto container) {
+    /// count << lodash::reduceArray(v, [](auto accumulator, auto currentValue, auto currentIndex, auto container) {
     ///     return accumulator + "Index: "s + std::to_string(currentIndex) + " = "s + std::to_string(currentValue) + '\n';
     /// }, std::string{})
-    /// </example></code>
+    /// </code></example>
     /// TODO Implement initialValue as optional: "[Optional] Value to use as the first argument to the first call of the callback.
     /// If no initial value is supplied, the first element in the array will be used. Calling reduce on an empty array without an
     /// initial value is an error."
@@ -709,7 +848,14 @@ namespace _ {
         return all(container, std::forward<Predicate>(predicate));
     }
 
-    // any/some
+    /// <summary>
+    /// The signature of the predicate function should be equivalent to the following :
+    /// <code>
+    /// bool pred(const Type &amp;a);
+    /// </code>
+    /// The signature does not need to have const &amp;, but the function must not modify the objects passed to it.
+    /// The type Type must be such that an object of type InputIt can be dereferenced and then implicitly converted to Type.​
+    /// </summary>
     template <typename Container, typename Predicate>
     bool any(const Container& container, Predicate&& predicate)
     {
@@ -750,7 +896,7 @@ namespace _ {
     }
 
     // pluck
-    // Called like `_::pluck<vector<int>>(container, &value_type::member)`
+    // Called like `lodash::pluck<vector<int>>(container, &value_type::member)`
     template <typename ResultContainer, typename Container, typename Member>
     ResultContainer pluck(Container const& container, Member member)
     {
@@ -773,13 +919,14 @@ namespace _ {
     /// <returns>The value that results from the reduction.</returns>
     /// <example><code><![CDATA[
     /// using fspath = std::experimental::filesystem::path;
-    /// template<typename Container>
-    /// std::string pathCombine(Container paths) {
-    ///     fspath path = _::reduce(Container, [](fspath _path, std::string segment) {
-    ///         return _path /= filepath(segment);
-    ///     }, fspath);
-    ///     return path.string();
-    /// }]]></code></example>
+    /// std::string pathCombine(const std::string& path, const std::vector<std::string>& more) {
+    ///     fspath full_path = lodash::reduce(more, [](const fspath _path, const std::string& segment) {
+    ///         return _path / filepath(segment);
+    ///     }, filepath(path));
+    /// 
+    ///     full_path.string();
+    /// }
+    /// ]]></code></example>
     /// TODO Implement initialValue as optional: "[Optional] Value to use as the first argument to the first call of the callback. If no initial value is supplied, the first element in the array will be used. Calling reduce on an empty array without an initial value is an error."
     /// TODO Implement full range of functionality as described in https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce?v=b
     template <typename Container, typename Memo, typename BinaryOperation>
@@ -795,6 +942,16 @@ namespace _ {
     T sum(const Container& container, T init = T())
     {
         return reduce(container, std::plus<T>(), std::move(init));
+    }
+
+    /// <summary>This method is like _.sum except that it accepts iteratee which is invoked for each element in array to generate the value to be summed. The iteratee is invoked with one argument: (value).</summary>
+    /// <param name="container">The container.</param>
+    /// <param name="iteratee">The iteratee invoked per element.</param>
+    /// <returns>The sum.</returns>
+    template <typename R, typename Container, typename Function, typename T = typename Container::value_type>
+    R sumBy(const Container& container, Function iteratee, R init = R())
+    {
+        return reduce(container, [](R total, T element) { return total + iteratee(element); }, std::move(init));
     }
 
     // max
@@ -849,7 +1006,7 @@ namespace _ {
     /// <param name="function">Function to compute value of each element</param>
     /// <returns>iterator to minimum element or end()</returns>
     /// <example>
-    /// auto it = _::min<float>(players, [player](const auto& _) {
+    /// auto it = lodash::min<float>(players, [player](const auto& _) {
     ///     return player.distanceToSquared(_); // function returns float
     /// });
     /// if (it != players.end())
@@ -968,7 +1125,7 @@ namespace _ {
         return result;
     }
 
-    // An internal function used for aggregate �group by� operations.
+    // An internal function used for aggregate “group by” operations.
     //group = function(behavior) {
     //    return function(obj, iteratee, context) {
     //        var result = {};
@@ -1284,6 +1441,32 @@ namespace _ {
         return result;
     }
 
+    // append
+    /// <summary>Add a new element <paramref="element" /> to copy of an existing array <paramref="container" /> with </summary>
+    /// <param name="container">container</param>
+    /// <param name="element">element</param>
+    /// <returns></returns>
+    template <typename Container>
+    Container append(const Container& container, const typename Container::value_type& element)
+    {
+        Container result;
+
+        // This may be a terrible idea, if reserve or size is not defined.
+        // result.reserve(container1.size() + container2.size());
+        each(container, [&result](auto value) { helper::add_to_container(result, value); });
+        helper::add_to_container(result, element);
+
+        // vector1.insert(vector1.end(), vector2.begin(), vector2.end());
+        // for (auto i = container.begin(); i != container.end(); ++i)
+        //{
+        //    if (static_cast<bool>(*i))
+        //    {
+        //        helper::add_to_container(result, *i);
+        //    }
+        //}
+        return result;
+    }
+
     /// <summary>Append the contents of <paramref="source" /> to <paramref="destination" /></summary>
     /// <param name="destination">The destination array</param>
     /// <param name="source">The source array</param>
@@ -1586,6 +1769,13 @@ namespace _ {
         return value_position == container.end() ? -1 : std::distance(container.begin(), value_position);
     }
 
+    template <typename Container, typename Function>
+    int indexOf_if(const Container& container, Function&& predicate)
+    {
+        auto value_position = std::find_if(container.begin(), container.end(), std::forward<Function>(function));
+        return value_position == container.end() ? -1 : std::distance(container.begin(), value_position);
+    }
+
     // `indexOf` that accepts `Container::value_type = std::pair<K, V>`
     template <typename Container, typename Value>
     int indexOfMap(const Container& container, Value value)
@@ -1676,6 +1866,17 @@ namespace _ {
     {
         auto accum = range<std::vector<size_t>>(n);
         return map<ResultContainer>(accum, iteratee);
+    };
+
+    /// <summary>The same as `times` but doesn't collate return values or pass iteration</summary>
+    /// <param name="n">The number of times to invoke <paramref="iteratee" /></param>
+    /// <param name="iteratee">The iteratee, void iteratee()</param>
+    /// <returns>Array of the returned values</returns>
+    template <typename Function>
+    void timesSimple(size_t n, Function iteratee)
+    {
+        while (n-- > 0)
+            iteratee();
     };
 
 #ifdef UNDERSCORE_BONUS

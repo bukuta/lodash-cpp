@@ -8,7 +8,8 @@
 CXXFLAGS += -std=c++1z 
 CPPFLAGS += 
 
-SOURCES = test.cpp
+# SOURCES = test.cpp
+SOURCES = test-splice.cpp
 
 OBJECTS = $(SOURCES:.cpp=.o)
 
@@ -24,6 +25,10 @@ clean:
 ##############################################################################
 # single test file
 ##############################################################################
+
+splice_unit: $(OBJECTS) test-splice.cpp
+	@echo "[CXXLD] $@"
+	@$(CXX) $(CXXFLAGS) $(LDFLAGS) $(OBJECTS) -o $@
 
 json_unit: $(OBJECTS) test.cpp json.hpp
 	@echo "[CXXLD] $@"
