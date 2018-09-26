@@ -17,10 +17,21 @@ set(HEADER_BASE "${CMAKE_CURRENT_SOURCE_DIR}")
 set(config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 set(include_install_dir "${CMAKE_INSTALL_INCLUDEDIR}")
 set(targets_export_name "${PROJECT_NAME}Targets")
+set(version_config "${CMAKE_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake")
+
+# install targets
+install(
+    TARGETS lodashcpp
+    EXPORT "${targets_export_name}"
+)
 
 install(
     DIRECTORY "${HEADER_BASE}/${PROJECT_NAME}"
     DESTINATION "${include_install_dir}"
 )
-
+# install project version file
+install(
+    FILES "${version_config}"
+    DESTINATION "${config_install_dir}"
+)
 export(PACKAGE ${PROJECT_NAME})
