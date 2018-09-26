@@ -5,5 +5,5 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(HEADER_ONLY_TARGET STATIC lodash.hpp)
-set_target_properties(HEADER_ONLY_TARGET PROPERTIES LINKER_LANGUAGE CXX)
+add_library(lodashcpp INTERFACE  lodash.hpp)
+set_target_properties(lodashcpp PROPERTIES LINKER_LANGUAGE CXX)
