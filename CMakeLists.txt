@@ -10,7 +10,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # add_library(lodashcpp STATIC lodash.hpp)
 # set_target_properties(lodashcpp PROPERTIES LINKER_LANGUAGE CXX)
 add_library(lodashcpp INTERFACE)
-target_sources(lodashcpp INTERFACE lodash.hpp) 
+#target_sources(lodashcpp INTERFACE lodash.hpp) 
+target_include_directories(lodashcpp INTERFACE include/)
 
 set(HEADER_BASE "${CMAKE_CURRENT_SOURCE_DIR}")
 
