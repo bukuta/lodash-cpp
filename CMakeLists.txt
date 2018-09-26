@@ -6,4 +6,3 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(lodashcpp STATIC lodash.hpp)
-set_target_properties(lodashcpp PROPERTIES LINKER_LANGUAGE CXX)
