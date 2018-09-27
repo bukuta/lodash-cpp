@@ -394,8 +394,8 @@ namespace _
     ResultContainer mapObject(const Container& container, Function function)
     {
         ResultContainer result;
-        auto keys = keys(container);
-        for (const auto& key : keys) 
+        auto _keys = keys(container);
+        for (const auto& key : _keys) 
             helper::add_to_container(result, function(container[key], key));
 
         return result;
